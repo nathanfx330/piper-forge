@@ -1,230 +1,270 @@
-🗣️ Piper TTS Forge
+🎙️ Piper TTS Forge
 
-A streamlined, automated pipeline for fine-tuning **[Piper TTS](https://github.com/rhasspy/piper)** models.
+A streamlined, **batteries-included** toolkit for training custom Neural Text-to-Speech (TTS) voices using [Piper](https://github.com/rhasspy/piper).
 
-This repository contains a set of sequential scripts that handle the full voice-training lifecycle: from slicing raw audio and transcribing it with Whisper, to training via PyTorch, and finally exporting an optimized ONNX model for inference.
+This project automates the most painful parts of voice cloning:
+- Automatic slicing and transcription using **OpenAI Whisper**
+- Dataset formatting for Piper
+- Training, checkpoint management, and export
+- A real-time dashboard to *listen* to your model as it learns
 
 ---
 
-## 🚀 Features
+## ⚠️ Hardware Warning & Performance (Important)
 
-- **Automated Dataset Prep**  
-  Uses OpenAI Whisper for transcription and Librosa for audio slicing.
+**Read this before running `2_slice_and_transcribe.py`.**
 
-- **Zero-Config Training Defaults**  
-  Tuned for *Medium* quality (22,050 Hz) to balance realism and speed.
+By default, the slicer uses the **Whisper “large” model** for maximum transcription accuracy.
 
-- **Live Training Dashboard**  
-  A real-time monitor (`5_dashboard.py`) that generates waveform previews and spectrograms during training.
+- **VRAM requirement:** ~10 GB or more  
+  (RTX 3080 / 4070 / better)
 
-- **Checkpoint Safety Net**  
-  A checkpoint manager (`8_checkpoint_manager.py`) to back up and restore training states.
+### If you have less VRAM (RTX 3060, 2060, GTX 1080, etc.)
 
-- **Instant Inference**  
-  A CLI chat interface (`7_talk.py`) to test your voice model immediately.
+You **must** switch Whisper to the **medium** model.
+
+Edit `2_slice_and_transcribe.py`:
+
+```python
+# FROM:
+model = whisper.load_model("large", device=device)
+
+# TO:
+model = whisper.load_model("medium", device=device)
+````
+
+The **medium** model:
+
+* Uses far less VRAM
+* Is much faster
+* Is ~95% as accurate for clean speech
+
+---
+
+## 📂 Folder Structure
+
+Before starting, your directory should look like this:
+
+```text
+.
+├── piper/                 # Download from Piper GitHub and extract here
+│   ├── piper              # Piper executable
+│   └── src/               # Piper Python source
+├── raw_audio/             # Put your long .wav / .mp3 files here
+├── 1_setup.py
+├── 2_slice_and_transcribe.py
+├── 3_preprocess.py
+├── 4_train.py
+├── 5_dashboard.py
+├── 6_export.py
+├── 7_talk.py
+├── 8_checkpoint_manager.py
+├── config.py              # <-- EDIT THIS FIRST
+└── environment.yml
+```
 
 ---
 
 ## 🛠️ Prerequisites
 
-1. **Python 3.10+** (managed via Conda)
-2. **NVIDIA GPU** (strongly recommended — CPU training may take weeks)
-3. **Piper Engine Binary** (download separately)
+### System Dependencies
 
----
+**Windows**
 
-## 📦 Installation
+* Visual Studio C++ Build Tools
+* eSpeak-NG (must be in PATH)
 
-### 1. Clone the Repository
+**Linux (Ubuntu / Debian)**
+
 ```bash
-git clone https://github.com/yourusername/piper-voice-trainer.git
-cd piper-voice-trainer
-````
+sudo apt-get install espeak-ng g++
+```
 
-### 2. Set Up the Environment (Conda)
-
-Conda is used to manage GPU dependencies and system libraries.
+### Python Environment (Recommended: Conda)
 
 ```bash
 conda env create -f environment.yml
 conda activate piper-trainer
 ```
 
-### 3. Download Piper
-
-* Download the appropriate binary from:
-  👉 [https://github.com/rhasspy/piper/releases](https://github.com/rhasspy/piper/releases)
-* Extract it so the `piper/` directory lives in the **project root**
-
 ---
 
-## ⚙️ Configuration
+## 🚀 Usage Guide
 
-Edit `config.py`:
+### 1. Configuration & Setup
 
-```python
-VOICE_NAME = "my_custom_voice"  # Name of your trained model
-BATCH_SIZE = 8                 # Reduce to 4 or 2 if VRAM is limited
-MAX_EPOCHS = 6000              # Total training duration
-```
+Open `config.py` and set your `VOICE_NAME`.
 
----
-
-## 🏃 Workflow Overview
-
-Follow the scripts **in order** (1 → 8).
-
----
-
-## 🔹 Phase 1: Setup & Data
-
-### 1️⃣ Setup
+Then run:
 
 ```bash
 python 1_setup.py
 ```
 
-* Creates required folders
-* Verifies base model presence
-* Prompts you to download the base checkpoint (~400 MB) if missing
+If the base model is missing, the script will:
 
-➡️ **Action:** Place your `.wav` or `.mp3` files into `raw_audio/`
+* Print a download link
+* Tell you exactly where to place it
+* Require it to be named `base_model.ckpt`
 
 ---
 
-### 2️⃣ Slice & Transcribe
+### 2. Prepare Audio
+
+Drop your recordings into the `raw_audio/` folder.
+
+**Recommended:**
+
+* Format: WAV, MP3, FLAC, M4A
+* Length: 15–60 minutes total
+* Single speaker only
+* No music, no effects, minimal background noise
+
+---
+
+### 3. Slicing & Transcription
+
+This script:
+
+* Splits audio on silence
+* Transcribes speech with Whisper
+* Builds `metadata.csv`
 
 ```bash
 python 2_slice_and_transcribe.py
 ```
 
-* Splits audio into sentence-level clips
-* Transcribes using Whisper
-* Generates `metadata.csv`
+Afterwards, quickly inspect:
+
+```text
+dataset/metadata.csv
+```
+
+If you see junk lines (e.g. “Copyright”, “Subtitle”),
+delete them before continuing.
 
 ---
 
-### 3️⃣ Preprocess Dataset
+### 4. Preprocessing
+
+Converts audio and text into Piper-ready tensors.
 
 ```bash
 python 3_preprocess.py
 ```
 
-* Converts audio + metadata into Piper-ready tensors
-
 ---
 
-## 🔹 Phase 2: Training
+### 5. Training
 
-### 4️⃣ Train the Model
+Start the training loop:
 
 ```bash
 python 4_train.py
 ```
 
-* Resume-safe (restart anytime)
-* Press **Ctrl+C** to stop without losing progress
+* Press **Ctrl+C** to pause safely
+* Run the script again to resume
+* Typical good voices emerge between **1000–4000 epochs**
 
 ---
 
-### 5️⃣ Live Dashboard (new terminal)
+### 6. Dashboard (Live Monitoring)
+
+While training runs in one terminal, open another and run:
 
 ```bash
 python 5_dashboard.py
 ```
 
-* Watches training checkpoints
-* Auto-generates `preview_progress.wav` on each save
-* Edit `prompt.txt` to change preview text
+The dashboard will:
+
+* Detect new checkpoints automatically
+* Speak a sample line every time one is saved
+* Show training health (Warmup → Sweet Spot → Overfitting)
+* Optionally generate spectrogram comparisons
 
 ---
 
-## 🔹 Phase 3: Management & Export
+### 7. Export Final Model
 
-### 8️⃣ Checkpoint Manager
-
-```bash
-python 8_checkpoint_manager.py
-```
-
-Use frequently to:
-
-* Back up training state
-* Restore older checkpoints if quality degrades
-
----
-
-### 6️⃣ Export Model
+When the voice sounds right (usually during “Sweet Spot”):
 
 ```bash
 python 6_export.py
 ```
 
-* Selects best checkpoint
-* Outputs `.onnx` model to `final_models/`
+Your final files will appear in:
+
+```text
+final_models/
+├── your_voice.onnx
+└── your_voice.onnx.json
+```
 
 ---
 
-## 🔹 Phase 4: Usage
+### 8. Talk (Inference)
 
-### 7️⃣ Interactive CLI
+Test your new voice interactively:
 
 ```bash
 python 7_talk.py
 ```
 
-* Type text → press Enter
-* Audio saved to `generated_wavs/`
-* Filenames auto-generated from the first five words
+Audio will be saved automatically as `.wav` files.
 
 ---
 
-## 📂 Folder Structure
+## 🔧 Troubleshooting
+
+### CUDA Out of Memory (Training)
+
+Lower `BATCH_SIZE` in `config.py`.
+Try: `16 → 8 → 4`
+
+---
+
+### “Piper source code not found”
+
+Ensure your `piper/` directory contains a `src/` folder.
+You likely downloaded the wrong Piper release.
+
+---
+
+### Voice sounds metallic or robotic
+
+You likely **overfitted**:
+
+* Too many epochs
+* Too little data
+
+Use:
+
+```bash
+python 8_checkpoint_manager.py
+```
+
+to restore an earlier checkpoint, or stop training sooner next time.
+
+---
+
+## ⚖️ License
+
+This automation toolkit is open source.
+
+The Piper engine itself is licensed under MIT
+(c) Rhasspy contributors.
 
 ```
-.
-├── 1_setup.py
-├── ... (scripts 1–8)
-├── config.py
-├── environment.yml        # Conda environment definition
-├── piper/                 # Piper binary directory
-├── raw_audio/             # Source recordings
-├── dataset/               # Processed training data
-├── training_checkpoints/  # PyTorch logs (large)
-├── final_models/          # Exported ONNX models
-└── generated_wavs/        # Output from 7_talk.py
-```
 
 ---
 
-## 🐛 Troubleshooting
+If you want, I can also:
+- Add diagrams (training flow / data flow)
+- Tighten it for public release vs personal use
+- Write a short “When to stop training” guide
+- Or split this into **Quick Start** + **Deep Dive**
 
-**Out of Memory (OOM)**
-→ Lower `BATCH_SIZE` in `config.py`
-
-**Metallic / robotic voice**
-→ Overtraining
-→ Restore an earlier checkpoint using script `8`
-
-**Piper not found**
-→ Confirm `piper/` exists in the project root and contains the executable
-
----
-
-## 📜 Credits
-
-Built on the excellent work of **Rhasspy / Piper**.
-
----
-
-## 📄 License
-
-MIT License.
-
-You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of this software, provided the original copyright notice and permission notice
-are included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.
-Just say it.
+Just say which direction.
 ```
