@@ -1,4 +1,4 @@
-# 🗣️ Piper TTS Forge 
+🗣️ Piper TTS Forge
 
 A streamlined, automated pipeline for fine-tuning **[Piper TTS](https://github.com/rhasspy/piper)** models.
 
@@ -49,7 +49,7 @@ pip install -r requirements.txt
 
 ### 3. Download Piper
 
-* Download the appropriate binary from the
+* Download the appropriate binary from
   👉 [https://github.com/rhasspy/piper/releases](https://github.com/rhasspy/piper/releases)
 * Extract it so the `piper/` directory lives in the **project root**
 
@@ -211,3 +211,15 @@ python 7_talk.py
 ## 📜 Credits
 
 Built on the excellent work of **Rhasspy / Piper**.
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+
+You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of this software, provided the original copyright notice and permission notice
+are included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.
