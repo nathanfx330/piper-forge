@@ -1,6 +1,7 @@
 🎙️ Piper TTS Forge
+*(Tested on Debian Linux Variants)*
 
-A streamlined, **batteries-included** toolkit for training custom Neural Text-to-Speech (TTS) voices using [Piper](https://github.com/rhasspy/piper).
+A streamlined, toolkit for training custom Neural Text-to-Speech (TTS) voices using [Piper](https://github.com/rhasspy/piper).
 
 This project automates the most painful parts of voice cloning:
 - Automatic slicing and transcription using **OpenAI Whisper**
