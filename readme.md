@@ -1,5 +1,5 @@
 🎙️ Piper TTS Forge
-*(Tested on Debian Linux Variants)*
+*Tested on Debian Linux Variants (Windows instructions are theoretical guidelines only)*
 
 A streamlined toolkit for training custom Neural Text-to-Speech (TTS) voices using [Piper](https://github.com/rhasspy/piper).
 
@@ -29,6 +29,7 @@ The slicer uses the **Whisper “large” model** by default for maximum transcr
 Switch Whisper to the **medium** model to avoid crashes:
 
 ```python
+# Edit 2_slice_and_transcribe.py
 # FROM:
 model = whisper.load_model("large", device=device)
 
@@ -40,32 +41,15 @@ The medium model is faster, uses less VRAM, and is ~95% as accurate.
 
 ---
 
-## 🔄 Workflow Diagram
-
-```mermaid
-graph TD;
-    A[🎤 Raw Audio] -->|Script 2| B(🔪 Slicer & Whisper);
-    B -->|Generates| C[📂 Dataset & Metadata];
-    C -->|Script 3| D(⚙️ Preprocessing);
-    D -->|Generates| E[🔢 Tensors];
-    E -->|Script 4| F(🚂 Training Loop);
-    F -->|Script 5| G(📡 Dashboard / Preview);
-    G -->|Stop Training| H(🛡️ Backup Manager);
-    H -->|Script 6| I(📦 Export ONNX);
-    I -->|Script 7| J(🗣️ Inference);
-```
-
----
-
 ## 📂 Folder Structure
 
-Your directory should look like this:
+Your directory must look like this before starting. You will manually create the `piper/` folder in the next step.
 
 ```
 .
-├── piper/                 # Download from Piper GitHub and extract here
-│   ├── piper              # Piper executable
-│   └── src/               # Piper Python source
+├── piper/                 # <--- YOU MUST BUILD THIS MANUALLY
+│   ├── piper              # The executable file (piper.exe on Windows)
+│   └── src/               # The Python source code folder
 ├── raw_audio/             # Put your long .wav / .mp3 files here
 ├── config.py              # <-- EDIT THIS FIRST
 ├── environment.yml
@@ -74,27 +58,52 @@ Your directory should look like this:
 
 ---
 
-## 🛠️ Prerequisites
+## 🛠️ Prerequisites & Manual Setup
 
-### System Dependencies
+### 1. System Dependencies
 
-**Windows**
-
-* Visual Studio C++ Build Tools
-* eSpeak-NG (must be in PATH)
-
-**Linux (Ubuntu / Debian)**
+**Linux (Ubuntu / Debian):**
 
 ```bash
 sudo apt-get install espeak-ng g++
 ```
 
-### Python Environment (Recommended: Conda)
+**Windows (theoretical guideline, not tested):**
+
+* Visual Studio C++ Build Tools
+* eSpeak-NG (Install and ensure it is in your system PATH)
+
+### 2. Python Environment (Recommended: Conda)
 
 ```bash
 conda env create -f environment.yml
 conda activate piper-trainer
 ```
+
+### 3. Piper Engine Setup (Crucial Step)
+
+This project requires both the engine (to run audio) and the source code (to train). You must download two separate files and merge them.
+
+**Step A: Get the Executable**
+
+1. Go to the [Piper Releases Page](https://github.com/rhasspy/piper/releases).
+2. Download the compressed file for your OS (e.g., `piper_windows_amd64.zip` or `piper_linux_x86_64.tar.gz`).
+3. Extract it. You should now have a folder named `piper` containing the executable.
+4. Place this `piper` folder in the root of this project.
+
+**Step B: Get the Source Code**
+
+1. On the same Releases page, scroll to the **Assets** section.
+2. Download **Source code (zip)**.
+3. Extract it. You will see a folder like `piper-2023.11.14-2`.
+4. Locate the `src` folder inside.
+
+**Step C: Merge Them**
+
+1. Copy the `src` folder from Step B.
+2. Paste it inside your `piper` folder from Step A.
+
+Your folder structure should now match the diagram above.
 
 ---
 
@@ -108,14 +117,14 @@ Open `config.py` and set your `VOICE_NAME`. Then run:
 python 1_setup.py
 ```
 
-If the base model is missing, instructions will be provided.
+This script verifies your folder structure. If you are missing the Base Model (checkpoint), it will provide the URL to download it manually.
 
 ### 2. Prepare Audio
 
-Drop recordings into `raw_audio/`.
-**Format:** WAV, MP3, FLAC, M4A
-**Length:** 15–60 minutes total
-**Quality:** Single speaker, no music, minimal background noise
+* Drop recordings into `raw_audio/`
+* Format: WAV, MP3, FLAC, M4A
+* Length: 15–60 minutes total
+* Quality: Single speaker, no music, minimal background noise
 
 ### 3. Slicing & Transcription
 
@@ -149,25 +158,24 @@ While training runs in one terminal, open another and run:
 python 5_dashboard.py
 ```
 
-This script generates an audio file named:
+Generates an audio file named:
 
-**👉 preview_progress.wav 👈**
+👉 `preview_progress.wav` 👈
 
-Listen frequently—it updates automatically as training progresses. This lets you judge if the voice is ready without stopping the training loop.
+Listen frequently—it updates automatically as training progresses.
 
 ### 7. Backup & Restore (Script 8)
 
 ⚠️ Cannot backup while training writes files.
 
-1. Listen to `preview_progress.wav`.
-2. If at the "Sweet Spot," stop training (`Ctrl+C`) and run:
+Listen to `preview_progress.wav`.
+If at the "Sweet Spot," stop training (`Ctrl+C`) and run:
 
 ```bash
 python 8_checkpoint_manager.py
 ```
 
-Select **Option 1 (Backup)**.
-To restore if overfitting occurs, run the script again and choose Restore.
+Select Option 1 (Backup). To restore if overfitting occurs, run the script again and choose Restore.
 
 ### 8. Export Final Model
 
@@ -181,6 +189,23 @@ Final files appear in `final_models/`.
 
 ```bash
 python 7_talk.py
+```
+
+---
+
+## 🔄 Workflow Diagram
+
+```mermaid
+graph TD;
+    A[🎤 Raw Audio] -->|Script 2| B(🔪 Slicer & Whisper);
+    B -->|Generates| C[📂 Dataset & Metadata];
+    C -->|Script 3| D(⚙️ Preprocessing);
+    D -->|Generates| E[🔢 Tensors];
+    E -->|Script 4| F(🚂 Training Loop);
+    F -->|Script 5| G(📡 Dashboard / Preview);
+    G -->|Stop Training| H(🛡️ Backup Manager);
+    H -->|Script 6| I(📦 Export ONNX);
+    I -->|Script 7| J(🗣️ Inference);
 ```
 
 ---
@@ -199,11 +224,12 @@ python 7_talk.py
 ## 🔧 Troubleshooting
 
 * **CUDA Out of Memory:** Lower `BATCH_SIZE` in `config.py` (16 → 8 → 4)
-* **“Piper source code not found”:** Ensure `piper/src/` exists. Download the correct release.
-* **Voice sounds metallic:** You overfitted; restore an earlier backup.
+* **“Piper source code not found”:** Ensure `piper/src/` exists. Likely forgot to merge Source Code into binary.
+* **Voice sounds metallic:** Overfitted; restore an earlier backup.
 
 ---
 
 ## ⚖️ License
 
 This automation toolkit is open source. The Piper engine is MIT licensed (c) Rhasspy contributors.
+
