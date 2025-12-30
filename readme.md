@@ -207,6 +207,3 @@ python 7_talk.py
 ## ⚖️ License
 
 This automation toolkit is open source. The Piper engine is MIT licensed (c) Rhasspy contributors.
-
-If you want, I can also add **clickable links for all scripts** and a **table of contents** for easier navigation. Do you want me to do that next?
-```
