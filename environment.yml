@@ -1,0 +1,24 @@
+name: piper-trainer
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.1
+  - pytorch-lightning
+  - librosa
+  - soundfile
+  - matplotlib
+  - tqdm
+  - cython
+  - espeak-ng
+  - pip
+  - pip:
+      - openai-whisper
+      - onnx
+      - onnxruntime

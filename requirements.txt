@@ -1,0 +1,10 @@
+torch
+torchaudio
+pytorch-lightning
+librosa
+soundfile
+openai-whisper
+tqdm
+matplotlib
+numpy
+cython
