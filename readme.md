@@ -255,17 +255,4 @@ to restore an earlier checkpoint, or stop training sooner next time.
 This automation toolkit is open source.
 
 The Piper engine itself is licensed under MIT
-(c) Rhasspy contributors.
-
-```
-
----
-
-If you want, I can also:
-- Add diagrams (training flow / data flow)
-- Tighten it for public release vs personal use
-- Write a short “When to stop training” guide
-- Or split this into **Quick Start** + **Deep Dive**
-
-Just say which direction.
-```
+Rhasspy contributors.
