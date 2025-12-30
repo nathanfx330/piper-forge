@@ -1,80 +1,88 @@
 🎙️ Piper TTS Forge
-*(Tested on Debian Linux Variants)*
 
-A streamlined, toolkit for training custom Neural Text-to-Speech (TTS) voices using [Piper](https://github.com/rhasspy/piper).
+**A streamlined, toolkit for training custom Neural Text-to-Speech (TTS) voices using [Piper](https://github.com/rhasspy/piper).**
 
 This project automates the most painful parts of voice cloning:
-- Automatic slicing and transcription using **OpenAI Whisper**
-- Dataset formatting for Piper
-- Training, checkpoint management, and export
-- A real-time dashboard to *listen* to your model as it learns
+
+* Automatic slicing and transcription using **OpenAI Whisper**
+* Dataset formatting for Piper
+* Training, checkpoint management, and export
+* Real-time dashboard to listen to your model as it learns
 
 ---
 
-## ⚠️ Hardware Warning & Performance (Important)
+## ⚠️ Hardware & Storage Requirements
 
+**Read before running `2_slice_and_transcribe.py`.**
 
-### 1. Storage Warning
-⚠️ **Disk Space:** It is recommended to have at least **100 GB** of free space.
-Training checkpoints are large files. If you use the backup manager (`8_checkpoint_manager.py`) to save a "safe" version while training a new one, you will essentially double the space required.
+### Storage
 
+* **Recommended:** ≥100 GB free space
+* Training checkpoints are large. Backups will duplicate the training folder, requiring extra space.
 
-### 2. VRAM Warning (GPU)
-By default, the slicer uses the **Whisper “large” model** for maximum transcription accuracy.
-- **Requirement:** ~10 GB VRAM or more (RTX 3080 / 4070 or better).
+### GPU / VRAM
 
-**If you have less VRAM (RTX 3060, 2060, GTX 1080, etc.):**
-You **must** switch Whisper to the **medium** model to avoid crashing.
+* Whisper “large” model requires **~10 GB VRAM** (RTX 3080 / 4070 or better)
+* For lower VRAM (RTX 3060, 2060, GTX 1080, etc.), switch to **Whisper medium** in `2_slice_and_transcribe.py`:
 
-Edit `2_slice_and_transcribe.py`:
 ```python
 # FROM:
 model = whisper.load_model("large", device=device)
 
 # TO:
 model = whisper.load_model("medium", device=device)
+```
+
+> Medium model is faster, uses less VRAM, and ~95% as accurate.
+
+---
+
+## 🔄 Workflow
+
+```mermaid
+graph TD;
+    A[🎤 Raw Audio] -->|Script 2| B(🔪 Slicer & Whisper);
+    B -->|Generates| C[📂 Dataset & Metadata];
+    C -->|Script 3| D(⚙️ Preprocessing);
+    D -->|Generates| E[🔢 Tensors];
+    E -->|Script 4| F(🚂 Training Loop);
+    F -->|Script 5| G(📡 Dashboard / Preview);
+    G -->|Stop Training| H(🛡️ Backup Manager);
+    H -->|Script 6| I(📦 Export ONNX);
+    I -->|Script 7| J(🗣️ Inference);
+```
+
 ---
 
 ## 📂 Folder Structure
 
-Before starting, your directory should look like this:
-
-```text
+```
 .
-├── piper/                 # Download from Piper GitHub and extract here
+├── piper/                 # Piper GitHub release
 │   ├── piper              # Piper executable
 │   └── src/               # Piper Python source
-├── raw_audio/             # Put your long .wav / .mp3 files here
-├── 1_setup.py
-├── 2_slice_and_transcribe.py
-├── 3_preprocess.py
-├── 4_train.py
-├── 5_dashboard.py
-├── 6_export.py
-├── 7_talk.py
-├── 8_checkpoint_manager.py
+├── raw_audio/             # Place long .wav/.mp3 files here
 ├── config.py              # <-- EDIT THIS FIRST
-└── environment.yml
+├── environment.yml
+└── [1-8]_*.py             # Automation scripts
 ```
 
 ---
 
 ## 🛠️ Prerequisites
 
-### System Dependencies
-
-**Windows**
-
-* Visual Studio C++ Build Tools
-* eSpeak-NG (must be in PATH)
-
-**Linux (Ubuntu / Debian)**
+### Linux (Ubuntu / Debian)
 
 ```bash
 sudo apt-get install espeak-ng g++
 ```
 
-### Python Environment (Recommended: Conda)
+### Windows
+
+* Visual Studio C++ Build Tools
+* eSpeak-NG in PATH
+
+### Python Environment (Conda recommended)
 
 ```bash
 conda env create -f environment.yml
@@ -87,165 +95,128 @@ conda activate piper-trainer
 
 ### 1. Configuration & Setup
 
-Open `config.py` and set your `VOICE_NAME`.
-
-Then run:
+Edit `config.py` to set `VOICE_NAME` and run:
 
 ```bash
 python 1_setup.py
 ```
 
-If the base model is missing, the script will:
-
-* Print a download link
-* Tell you exactly where to place it
-* Require it to be named `base_model.ckpt`
+If the base model is missing, instructions will be provided to download and place it.
 
 ---
 
 ### 2. Prepare Audio
 
-Drop your recordings into the `raw_audio/` folder.
-
-**Recommended:**
-
-* Format: WAV, MP3, FLAC, M4A
+* Place recordings in `raw_audio/`
+* Formats: WAV, MP3, FLAC, M4A
 * Length: 15–60 minutes total
-* Single speaker only
-* No music, no effects, minimal background noise
+* Single speaker, no music, minimal background noise
 
 ---
 
 ### 3. Slicing & Transcription
 
-This script:
-
-* Splits audio on silence
-* Transcribes speech with Whisper
-* Builds `metadata.csv`
-
 ```bash
 python 2_slice_and_transcribe.py
 ```
 
-Afterwards, quickly inspect:
-
-```text
-dataset/metadata.csv
-```
-
-If you see junk lines (e.g. “Copyright”, “Subtitle”),
-delete them before continuing.
+* Inspects `dataset/metadata.csv` after completion
+* Remove junk lines (e.g., "Copyright", "Subtitle")
 
 ---
 
 ### 4. Preprocessing
 
-Converts audio and text into Piper-ready tensors.
-
 ```bash
 python 3_preprocess.py
 ```
+
+* Converts audio and text into Piper-ready tensors
 
 ---
 
 ### 5. Training
 
-Start the training loop:
-
 ```bash
 python 4_train.py
 ```
 
-* Press **Ctrl+C** to pause safely
-* Run the script again to resume
-* Typical good voices emerge between **1000–4000 epochs**
+* Press `Ctrl+C` to pause safely and resume later
 
 ---
 
 ### 6. Dashboard (Live Monitoring)
 
-While training runs in one terminal, open another and run:
-
 ```bash
 python 5_dashboard.py
 ```
 
-The dashboard will:
-
-* Detect new checkpoints automatically
-* Speak a sample line every time one is saved
-* Show training health (Warmup → Sweet Spot → Overfitting)
-* Optionally generate spectrogram comparisons
+* Detects new checkpoints automatically
+* Speaks a sample line at each checkpoint
+* Shows training health (Warmup → Sweet Spot → Overfitting)
 
 ---
 
-### 7. Export Final Model
+### 7. Backup & Restore
 
-When the voice sounds right (usually during “Sweet Spot”):
+⚠️ **Do not backup while training is writing files.**
 
-```bash
-python 6_export.py
-```
+Steps:
 
-Your final files will appear in:
-
-```text
-final_models/
-├── your_voice.onnx
-└── your_voice.onnx.json
-```
-
----
-
-### 8. Talk (Inference)
-
-Test your new voice interactively:
-
-```bash
-python 7_talk.py
-```
-
-Audio will be saved automatically as `.wav` files.
-
----
-
-## 🔧 Troubleshooting
-
-### CUDA Out of Memory (Training)
-
-Lower `BATCH_SIZE` in `config.py`.
-Try: `16 → 8 → 4`
-
----
-
-### “Piper source code not found”
-
-Ensure your `piper/` directory contains a `src/` folder.
-You likely downloaded the wrong Piper release.
-
----
-
-### Voice sounds metallic or robotic
-
-You likely **overfitted**:
-
-* Too many epochs
-* Too little data
-
-Use:
+1. Manually stop training (`Ctrl+C`)
+2. Run manager:
 
 ```bash
 python 8_checkpoint_manager.py
 ```
 
-to restore an earlier checkpoint, or stop training sooner next time.
+3. Choose **Option 1 (Backup)**
+4. Resume training as needed
+
+* Restore backups if voice quality degrades
+
+---
+
+### 8. Export Final Model
+
+```bash
+python 6_export.py
+```
+
+* Final files appear in `final_models/`
+
+---
+
+### 9. Talk (Inference)
+
+```bash
+python 7_talk.py
+```
+
+* Test your new voice interactively
+
+---
+
+## 🧠 Training Guide
+
+| Stage      | Epochs      | Sound Characteristics                   | Action         |
+| ---------- | ----------- | --------------------------------------- | -------------- |
+| Warmup     | 0 - 500     | Muffled, skipping words, noise static   | Keep Going     |
+| Learning   | 500 - 1500  | Recognizable voice, lacks cadence       | Monitor        |
+| Sweet Spot | 1500 - 3500 | Clear, emotional, natural breathing     | STOP & BACKUP  |
+| Overfit    | 4000+       | Metallic, robotic pitch, high-frequency | Restore Backup |
+
+---
+
+## 🔧 Troubleshooting
+
+* **CUDA Out of Memory:** Lower `BATCH_SIZE` in `config.py` (16 → 8 → 4)
+* **Piper source not found:** Ensure `piper/src/` exists (correct release downloaded)
+* **Voice sounds metallic:** Overfitting, restore earlier backup
 
 ---
 
 ## ⚖️ License
 
-This automation toolkit is open source.
-
-The Piper engine itself is licensed under MIT
-Rhasspy contributors.
+* **Automation Toolkit:** Open source
+* **Piper Engine:** MIT © Rhasspy contributors
