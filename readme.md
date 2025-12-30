@@ -13,33 +13,26 @@ This project automates the most painful parts of voice cloning:
 
 ## ⚠️ Hardware Warning & Performance (Important)
 
-**Read this before running `2_slice_and_transcribe.py`.**
 
+### 1. Storage Warning
+⚠️ **Disk Space:** It is recommended to have at least **100 GB** of free space.
+Training checkpoints are large files. If you use the backup manager (`8_checkpoint_manager.py`) to save a "safe" version while training a new one, you will essentially double the space required.
+
+
+### 2. VRAM Warning (GPU)
 By default, the slicer uses the **Whisper “large” model** for maximum transcription accuracy.
+- **Requirement:** ~10 GB VRAM or more (RTX 3080 / 4070 or better).
 
-- **VRAM requirement:** ~10 GB or more  
-  (RTX 3080 / 4070 / better)
-
-### If you have less VRAM (RTX 3060, 2060, GTX 1080, etc.)
-
-You **must** switch Whisper to the **medium** model.
+**If you have less VRAM (RTX 3060, 2060, GTX 1080, etc.):**
+You **must** switch Whisper to the **medium** model to avoid crashing.
 
 Edit `2_slice_and_transcribe.py`:
-
 ```python
 # FROM:
 model = whisper.load_model("large", device=device)
 
 # TO:
 model = whisper.load_model("medium", device=device)
-````
-
-The **medium** model:
-
-* Uses far less VRAM
-* Is much faster
-* Is ~95% as accurate for clean speech
-
 ---
 
 ## 📂 Folder Structure
