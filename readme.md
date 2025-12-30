@@ -27,7 +27,7 @@ This repository contains a set of sequential scripts that handle the full voice-
 
 ## 🛠️ Prerequisites
 
-1. **Python 3.10+**
+1. **Python 3.10+** (managed via Conda)
 2. **NVIDIA GPU** (strongly recommended — CPU training may take weeks)
 3. **Piper Engine Binary** (download separately)
 
@@ -41,15 +41,18 @@ git clone https://github.com/yourusername/piper-voice-trainer.git
 cd piper-voice-trainer
 ````
 
-### 2. Install Python Dependencies
+### 2. Set Up the Environment (Conda)
+
+Conda is used to manage GPU dependencies and system libraries.
 
 ```bash
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate piper-trainer
 ```
 
 ### 3. Download Piper
 
-* Download the appropriate binary from
+* Download the appropriate binary from:
   👉 [https://github.com/rhasspy/piper/releases](https://github.com/rhasspy/piper/releases)
 * Extract it so the `piper/` directory lives in the **project root**
 
@@ -73,9 +76,9 @@ Follow the scripts **in order** (1 → 8).
 
 ---
 
-### 🔹 Phase 1: Setup & Data
+## 🔹 Phase 1: Setup & Data
 
-#### 1️⃣ Setup
+### 1️⃣ Setup
 
 ```bash
 python 1_setup.py
@@ -89,7 +92,7 @@ python 1_setup.py
 
 ---
 
-#### 2️⃣ Slice & Transcribe
+### 2️⃣ Slice & Transcribe
 
 ```bash
 python 2_slice_and_transcribe.py
@@ -101,7 +104,7 @@ python 2_slice_and_transcribe.py
 
 ---
 
-#### 3️⃣ Preprocess Dataset
+### 3️⃣ Preprocess Dataset
 
 ```bash
 python 3_preprocess.py
@@ -111,9 +114,9 @@ python 3_preprocess.py
 
 ---
 
-### 🔹 Phase 2: Training
+## 🔹 Phase 2: Training
 
-#### 4️⃣ Train the Model
+### 4️⃣ Train the Model
 
 ```bash
 python 4_train.py
@@ -124,7 +127,7 @@ python 4_train.py
 
 ---
 
-#### 5️⃣ Live Dashboard (new terminal)
+### 5️⃣ Live Dashboard (new terminal)
 
 ```bash
 python 5_dashboard.py
@@ -136,9 +139,9 @@ python 5_dashboard.py
 
 ---
 
-### 🔹 Phase 3: Management & Export
+## 🔹 Phase 3: Management & Export
 
-#### 8️⃣ Checkpoint Manager
+### 8️⃣ Checkpoint Manager
 
 ```bash
 python 8_checkpoint_manager.py
@@ -151,7 +154,7 @@ Use frequently to:
 
 ---
 
-#### 6️⃣ Export Model
+### 6️⃣ Export Model
 
 ```bash
 python 6_export.py
@@ -162,9 +165,9 @@ python 6_export.py
 
 ---
 
-### 🔹 Phase 4: Usage
+## 🔹 Phase 4: Usage
 
-#### 7️⃣ Interactive CLI
+### 7️⃣ Interactive CLI
 
 ```bash
 python 7_talk.py
@@ -172,7 +175,7 @@ python 7_talk.py
 
 * Type text → press Enter
 * Audio saved to `generated_wavs/`
-* Filenames auto-generated from first five words
+* Filenames auto-generated from the first five words
 
 ---
 
@@ -183,13 +186,13 @@ python 7_talk.py
 ├── 1_setup.py
 ├── ... (scripts 1–8)
 ├── config.py
-├── requirements.txt
-├── piper/                  # Piper binary directory
-├── raw_audio/              # Source recordings
-├── dataset/                # Processed training data
-├── training_checkpoints/   # PyTorch logs (large)
-├── final_models/           # Exported ONNX models
-└── generated_wavs/         # Output from 7_talk.py
+├── environment.yml        # Conda environment definition
+├── piper/                 # Piper binary directory
+├── raw_audio/             # Source recordings
+├── dataset/               # Processed training data
+├── training_checkpoints/  # PyTorch logs (large)
+├── final_models/          # Exported ONNX models
+└── generated_wavs/        # Output from 7_talk.py
 ```
 
 ---
@@ -216,10 +219,12 @@ Built on the excellent work of **Rhasspy / Piper**.
 
 ## 📄 License
 
-This project is licensed under the **MIT License**.
+MIT License.
 
 You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of this software, provided the original copyright notice and permission notice
 are included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.
+Just say it.
+```
