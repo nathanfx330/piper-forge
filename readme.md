@@ -1,29 +1,32 @@
 🎙️ Piper TTS Forge
+*(Tested on Debian Linux Variants)*
 
-**A streamlined, toolkit for training custom Neural Text-to-Speech (TTS) voices using [Piper](https://github.com/rhasspy/piper).**
+A streamlined toolkit for training custom Neural Text-to-Speech (TTS) voices using [Piper](https://github.com/rhasspy/piper).
 
 This project automates the most painful parts of voice cloning:
 
-* Automatic slicing and transcription using **OpenAI Whisper**
-* Dataset formatting for Piper
-* Training, checkpoint management, and export
-* Real-time dashboard to listen to your model as it learns
+- Automatic slicing and transcription using **OpenAI Whisper**
+- Dataset formatting for Piper
+- Training, checkpoint management, and export
+- A real-time dashboard to *listen* to your model as it learns
 
 ---
 
-## ⚠️ Hardware & Storage Requirements
+## ⚠️ Hardware & Storage Requirements (Important)
 
-**Read before running `2_slice_and_transcribe.py`.**
+**Read this before running `2_slice_and_transcribe.py`.**
 
-### Storage
+### 1. Storage Warning
+⚠️ **Disk Space:** At least **100 GB** of free space is recommended.  
+Training checkpoints are large. Backups (Script 8) duplicate the training folder, requiring more space.
 
-* **Recommended:** ≥100 GB free space
-* Training checkpoints are large. Backups will duplicate the training folder, requiring extra space.
+### 2. VRAM Warning (GPU)
+The slicer uses the **Whisper “large” model** by default for maximum transcription accuracy.
 
-### GPU / VRAM
+- **Requirement:** ~10 GB VRAM or more (RTX 3080 / 4070 or better).
 
-* Whisper “large” model requires **~10 GB VRAM** (RTX 3080 / 4070 or better)
-* For lower VRAM (RTX 3060, 2060, GTX 1080, etc.), switch to **Whisper medium** in `2_slice_and_transcribe.py`:
+**For GPUs with less VRAM (RTX 3060, 2060, GTX 1080, etc.):**  
+Switch Whisper to the **medium** model to avoid crashes:
 
 ```python
 # FROM:
@@ -31,13 +34,13 @@ model = whisper.load_model("large", device=device)
 
 # TO:
 model = whisper.load_model("medium", device=device)
-```
+````
 
-> Medium model is faster, uses less VRAM, and ~95% as accurate.
+The medium model is faster, uses less VRAM, and is ~95% as accurate.
 
 ---
 
-## 🔄 Workflow
+## 🔄 Workflow Diagram
 
 ```mermaid
 graph TD;
@@ -56,12 +59,14 @@ graph TD;
 
 ## 📂 Folder Structure
 
+Your directory should look like this:
+
 ```
 .
-├── piper/                 # Piper GitHub release
+├── piper/                 # Download from Piper GitHub and extract here
 │   ├── piper              # Piper executable
 │   └── src/               # Piper Python source
-├── raw_audio/             # Place long .wav/.mp3 files here
+├── raw_audio/             # Put your long .wav / .mp3 files here
 ├── config.py              # <-- EDIT THIS FIRST
 ├── environment.yml
 └── [1-8]_*.py             # Automation scripts
@@ -71,18 +76,20 @@ graph TD;
 
 ## 🛠️ Prerequisites
 
-### Linux (Ubuntu / Debian)
+### System Dependencies
+
+**Windows**
+
+* Visual Studio C++ Build Tools
+* eSpeak-NG (must be in PATH)
+
+**Linux (Ubuntu / Debian)**
 
 ```bash
 sudo apt-get install espeak-ng g++
 ```
 
-### Windows
-
-* Visual Studio C++ Build Tools
-* eSpeak-NG in PATH
-
-### Python Environment (Conda recommended)
+### Python Environment (Recommended: Conda)
 
 ```bash
 conda env create -f environment.yml
@@ -95,24 +102,20 @@ conda activate piper-trainer
 
 ### 1. Configuration & Setup
 
-Edit `config.py` to set `VOICE_NAME` and run:
+Open `config.py` and set your `VOICE_NAME`. Then run:
 
 ```bash
 python 1_setup.py
 ```
 
-If the base model is missing, instructions will be provided to download and place it.
-
----
+If the base model is missing, instructions will be provided.
 
 ### 2. Prepare Audio
 
-* Place recordings in `raw_audio/`
-* Formats: WAV, MP3, FLAC, M4A
-* Length: 15–60 minutes total
-* Single speaker, no music, minimal background noise
-
----
+Drop recordings into `raw_audio/`.
+**Format:** WAV, MP3, FLAC, M4A
+**Length:** 15–60 minutes total
+**Quality:** Single speaker, no music, minimal background noise
 
 ### 3. Slicing & Transcription
 
@@ -120,10 +123,7 @@ If the base model is missing, instructions will be provided to download and plac
 python 2_slice_and_transcribe.py
 ```
 
-* Inspects `dataset/metadata.csv` after completion
-* Remove junk lines (e.g., "Copyright", "Subtitle")
-
----
+Inspect `dataset/metadata.csv` and remove junk lines (e.g., "Copyright", "Subtitle").
 
 ### 4. Preprocessing
 
@@ -131,9 +131,7 @@ python 2_slice_and_transcribe.py
 python 3_preprocess.py
 ```
 
-* Converts audio and text into Piper-ready tensors
-
----
+Converts audio and text into Piper-ready tensors.
 
 ### 5. Training
 
@@ -141,41 +139,35 @@ python 3_preprocess.py
 python 4_train.py
 ```
 
-* Press `Ctrl+C` to pause safely and resume later
-
----
+Press `Ctrl+C` to pause safely. Run the script again to resume.
 
 ### 6. Dashboard (Live Monitoring)
+
+While training runs in one terminal, open another and run:
 
 ```bash
 python 5_dashboard.py
 ```
 
-* Detects new checkpoints automatically
-* Speaks a sample line at each checkpoint
-* Shows training health (Warmup → Sweet Spot → Overfitting)
+This script generates an audio file named:
 
----
+**👉 preview_progress.wav 👈**
 
-### 7. Backup & Restore
+Listen frequently—it updates automatically as training progresses. This lets you judge if the voice is ready without stopping the training loop.
 
-⚠️ **Do not backup while training is writing files.**
+### 7. Backup & Restore (Script 8)
 
-Steps:
+⚠️ Cannot backup while training writes files.
 
-1. Manually stop training (`Ctrl+C`)
-2. Run manager:
+1. Listen to `preview_progress.wav`.
+2. If at the "Sweet Spot," stop training (`Ctrl+C`) and run:
 
 ```bash
 python 8_checkpoint_manager.py
 ```
 
-3. Choose **Option 1 (Backup)**
-4. Resume training as needed
-
-* Restore backups if voice quality degrades
-
----
+Select **Option 1 (Backup)**.
+To restore if overfitting occurs, run the script again and choose Restore.
 
 ### 8. Export Final Model
 
@@ -183,9 +175,7 @@ python 8_checkpoint_manager.py
 python 6_export.py
 ```
 
-* Final files appear in `final_models/`
-
----
+Final files appear in `final_models/`.
 
 ### 9. Talk (Inference)
 
@@ -193,30 +183,30 @@ python 6_export.py
 python 7_talk.py
 ```
 
-* Test your new voice interactively
-
 ---
 
-## 🧠 Training Guide
+## 🧠 Guide: When to Stop Training
 
-| Stage      | Epochs      | Sound Characteristics                   | Action         |
-| ---------- | ----------- | --------------------------------------- | -------------- |
-| Warmup     | 0 - 500     | Muffled, skipping words, noise static   | Keep Going     |
-| Learning   | 500 - 1500  | Recognizable voice, lacks cadence       | Monitor        |
-| Sweet Spot | 1500 - 3500 | Clear, emotional, natural breathing     | STOP & BACKUP  |
-| Overfit    | 4000+       | Metallic, robotic pitch, high-frequency | Restore Backup |
+| Stage      | Epochs (Approx) | Sound Characteristics                     | Action         |
+| ---------- | --------------- | ----------------------------------------- | -------------- |
+| Warmup     | 0 - 500         | Muffled, skipping words, noise static     | Keep Going     |
+| Learning   | 500 - 1500      | Recognizable voice, lacks cadence         | Monitor        |
+| Sweet Spot | 1500 - 3500     | Clear, emotional, good breathing, natural | STOP & BACKUP  |
+| Overfit    | 4000+           | Metallic buzz, robotic pitch              | Restore Backup |
 
 ---
 
 ## 🔧 Troubleshooting
 
 * **CUDA Out of Memory:** Lower `BATCH_SIZE` in `config.py` (16 → 8 → 4)
-* **Piper source not found:** Ensure `piper/src/` exists (correct release downloaded)
-* **Voice sounds metallic:** Overfitting, restore earlier backup
+* **“Piper source code not found”:** Ensure `piper/src/` exists. Download the correct release.
+* **Voice sounds metallic:** You overfitted; restore an earlier backup.
 
 ---
 
 ## ⚖️ License
 
-* **Automation Toolkit:** Open source
-* **Piper Engine:** MIT © Rhasspy contributors
+This automation toolkit is open source. The Piper engine is MIT licensed (c) Rhasspy contributors.
+
+If you want, I can also add **clickable links for all scripts** and a **table of contents** for easier navigation. Do you want me to do that next?
+```
