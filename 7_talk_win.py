@@ -1,3 +1,11 @@
+# --- About: This is a windows python script for Piper Models ---
+# It allows for:
+# 1. Text-to-Speech generation using Piper .onnx models
+# 2. Support for SSML tags like <break time='500ms'/> and <down/> (inflection)
+# 3. Dynamic model versioning (scanning 'final_models' folder)
+# 4. Interactive typing or File reading modes
+# 5. Autoplay toggling and Output file management
+
 import os
 import sys
 import subprocess
