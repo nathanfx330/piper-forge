@@ -5,25 +5,24 @@ import re
 import time
 import glob
 import json
-import winsound
 import wave
 import struct
 
 # --- CONFIGURATION ---
-# Check config.py first, otherwise use defaults below
 try:
     from config import *
 except ImportError:
-    # --- MANUAL CONFIG (If config.py is missing) ---
-    PIPER_DIR = r"C:\Path\To\Piper_Folder" 
+    # --- MANUAL CONFIG ---
+    # Path to the folder containing the 'piper' binary
+    # Defaulting to current directory "."
+    PIPER_DIR = "." 
     VOICE_NAME = "en_US-libritts-high" 
     OUTPUT_DIR = "output"
     
-    # UPDATE: Set this to your actual models folder name
-    # Based on your input, it seems to be "final_models"
+    # Folder containing your versioned models
     MODELS_DIR = "final_models" 
 
-# Ensure MODELS_DIR is defined if config.py didn't have it
+# Ensure MODELS_DIR is defined
 if 'MODELS_DIR' not in locals():
     MODELS_DIR = "final_models"
 
@@ -33,28 +32,39 @@ TXT_INPUT_DIR = "txts"
 TEMP_DIR = "temp_chunks"
 SETTINGS_FILE = os.path.join(TXT_INPUT_DIR, "tts_settings.json")
 
-# Default model path (fallback if no version found)
+# Default model path
 DEFAULT_MODEL_PATH = os.path.join(PIPER_DIR, f"{VOICE_NAME}.onnx")
-PIPER_BINARY = os.path.join(PIPER_DIR, "piper.exe")
+# Linux binary usually has no extension
+PIPER_BINARY = os.path.join(PIPER_DIR, "piper")
 
 def ensure_setup():
     """Initializes folders and checks for required binaries."""
-    # We check relative to current script location
     for d in [OUTPUT_DIR, OUTPUT_WAVS_DIR, TXT_INPUT_DIR, TEMP_DIR, MODELS_DIR]:
         if not os.path.exists(d):
             os.makedirs(d)
             print(f"Created directory: {d}")
 
     if not os.path.exists(PIPER_BINARY):
-        print(f"❌ Error: Piper executable not found at {PIPER_BINARY}")
-        print(f"   Please check PIPER_DIR in the script.")
+        print(f"❌ Error: Piper binary not found at {PIPER_BINARY}")
+        print(f"   Make sure it is inside PIPER_DIR and marked executable (chmod +x piper)")
         sys.exit(1)
 
+def play_audio_linux(file_path):
+    """Plays audio using aplay (ALSA) or paplay (PulseAudio)."""
+    try:
+        # Try aplay first (ALSA default)
+        subprocess.run(["aplay", "-q", file_path], check=False, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        try:
+            # Fallback to paplay (PulseAudio)
+            subprocess.run(["paplay", file_path], check=False, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            print("⚠️  Could not play audio. Please install 'alsa-utils' (aplay).")
+
 def _get_default_settings():
-    """Returns the hardcoded default settings."""
     return {
         "autoplay": True,
-        "default_version": "version_5", # Set your preference here for resets
+        "default_version": "version_5", 
         "length_scale": 1.0,
         "noise_scale": 0.667,
         "noise_w": 0.8,
@@ -62,7 +72,6 @@ def _get_default_settings():
     }
 
 def get_settings():
-    """Reads or creates the runtime JSON settings file."""
     defaults = _get_default_settings()
     
     if not os.path.exists(SETTINGS_FILE):
@@ -82,7 +91,6 @@ def get_settings():
         return defaults
 
 def regenerate_default_settings():
-    """Overwrites the settings JSON file with default values."""
     defaults = _get_default_settings()
     try:
         with open(SETTINGS_FILE, 'w') as f:
@@ -96,31 +104,24 @@ def regenerate_default_settings():
 # --- MODEL RESOLUTION ---
 
 def find_model_path(version_name=None):
-    """
-    Locates the .onnx file based on the folder name in MODELS_DIR.
-    """
     if not version_name:
         return DEFAULT_MODEL_PATH
 
-    # Look inside the configured models folder (e.g. final_models/version_5)
     target_folder = os.path.join(MODELS_DIR, version_name)
     target_file_in_root = os.path.join(MODELS_DIR, f"{version_name}.onnx")
 
-    # 1. Check if it's a folder (Priority)
+    # 1. Check if it's a folder
     if os.path.isdir(target_folder):
-        # A. Check for specific name match inside folder (version_5.onnx)
         specific = os.path.join(target_folder, f"{version_name}.onnx")
         if os.path.exists(specific): return specific
         
-        # B. Check for standard 'model.onnx' (Common in training exports)
         standard = os.path.join(target_folder, "model.onnx")
         if os.path.exists(standard): return standard
         
-        # C. Grab the first .onnx found (Fallback)
         onnx_files = glob.glob(os.path.join(target_folder, "*.onnx"))
         if onnx_files: return onnx_files[0]
 
-    # 2. Check if it's a direct file in final_models/
+    # 2. Check if it's a direct file
     if os.path.exists(target_file_in_root):
         return target_file_in_root
 
@@ -162,30 +163,24 @@ def process_text_to_audio(input_text, final_filename):
     settings = get_settings()
     
     # --- MODEL SELECTION LOGIC ---
-    # 1. Check for manual override in text: "version: v1"
     version_match = re.search(r'(?:^|\n)version:\s*([\w\-\.]+)', input_text, re.IGNORECASE)
     
     active_model_path = DEFAULT_MODEL_PATH
     clean_text = input_text
 
     if version_match:
-        # CASE A: Tag found in text
         version_name = version_match.group(1).strip()
         print(f"   🔍 Version Override (Tag): {version_name}")
         active_model_path = find_model_path(version_name)
-        # Remove tag from text
         clean_text = re.sub(r'(?:^|\n)version:\s*[\w\-\.]+', '', input_text, flags=re.IGNORECASE).strip()
     
     elif settings.get("default_version"):
-        # CASE B: Setting found in JSON (e.g., "version_5")
         version_name = settings["default_version"].strip()
-        # Only print if we are actually generating
         print(f"   🔍 Version Default (Settings): {version_name}")
         active_model_path = find_model_path(version_name)
         clean_text = input_text
     
     else:
-        # CASE C: Fallback to global default
         print(f"   🤖 Using Global Default Model")
         active_model_path = DEFAULT_MODEL_PATH
         clean_text = input_text
@@ -250,8 +245,7 @@ def process_text_to_audio(input_text, final_filename):
     print(f"   ✅ Saved: {final_filename}")
 
     if settings['autoplay']:
-        try: winsound.PlaySound(final_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
-        except: pass
+        play_audio_linux(final_path)
     
     return final_path
 
@@ -274,14 +268,12 @@ def run_piper_cmd(text, output_path, settings, model_path):
             "--sentence_silence", str(settings['sentence_silence'])
         ]
         
-        startupinfo = None
-        if os.name == 'nt':
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
+        # Linux does not use STARTUPINFO to hide windows
         process = subprocess.Popen(
-            cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            startupinfo=startupinfo
+            cmd, 
+            stdin=subprocess.PIPE, 
+            stdout=subprocess.DEVNULL, 
+            stderr=subprocess.DEVNULL
         )
         process.communicate(input=text.encode('utf-8'))
         return process.returncode == 0
@@ -333,9 +325,9 @@ def mode_read_file():
 def main():
     ensure_setup()
     while True:
-        os.system('cls' if os.name == 'nt' else 'clear')
+        os.system('clear')
         print("\n" + "="*40)
-        print(f"   🎙️  PIPER TTS MANAGER")
+        print(f"   🎙️  PIPER TTS MANAGER (Linux)")
         print(f"   📁 Models Dir: {MODELS_DIR}")
         print("="*40)
         print("1. ⌨️  Type & Speak")
