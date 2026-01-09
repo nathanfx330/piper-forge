@@ -227,6 +227,37 @@ graph TD;
 * **“Piper source code not found”:** Ensure `piper/src/` exists. Likely forgot to merge Source Code into binary.
 * **Voice sounds metallic:** Overfitted; restore an earlier backup.
 
+Ah! Perfect — here’s a **concise experimental section** you can drop in your README without touching the rest:
+
+---
+
+## 🧪 Experimental Phase: Neural Vocoder Integration
+
+This section is optional and intended for advanced experimentation. It adds a **neural vocoder** stage (BigVGAN) to improve audio realism beyond Piper’s native output.
+
+**Purpose:**
+
+* Enhance breath, transient clarity, and natural timbre
+* Remove metallic / buzzy artifacts common in high-pitch or fast speech
+* Test different fine-tuning strategies on your own recordings
+
+**Workflow:**
+
+1. Export Piper’s acoustic model (mel spectrograms)
+2. Prepare your dataset of raw audio corresponding to the mel outputs
+3. Run `9_vocoder_setup.py` / `9_vocoder_setup_finetune.py` to fetch or fine-tune BigVGAN
+4. Train vocoder (`10_train_vocoder.py`) while monitoring `preview_progress.wav`
+5. Bridge mel → waveform in inference (`Script 11`)
+
+**Notes:**
+
+* This is **experimental**: results may vary depending on dataset size and GPU resources
+* Phase separation ensures Piper focuses on linguistic modeling, while BigVGAN learns waveform realism
+* You can pause / resume fine-tuning without losing progress
+
+**Goal:** Produce studio-quality, realistic TTS that surpasses Piper’s ceiling, while keeping the acoustic model intact.
+
+
 ---
 
 ## ⚖️ License
