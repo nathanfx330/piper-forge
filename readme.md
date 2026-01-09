@@ -233,6 +233,8 @@ Ah! Perfect — here’s a **concise experimental section** you can drop in your
 
 ## 🧪 Experimental Phase: Neural Vocoder Integration
 
+(Steps 9-11) 9_vocoder_setup.py -> 11_inference_studio.py
+
 This section is optional and intended for advanced experimentation. It adds a **neural vocoder** stage (BigVGAN) to improve audio realism beyond Piper’s native output.
 
 **Purpose:**
