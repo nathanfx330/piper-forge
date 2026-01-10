@@ -13,7 +13,9 @@ CHECKPOINT_DIR = "pretrained_checkpoints"
 # The "Universal Physics" Model (NVIDIA BigVGAN v2 22kHz)
 # This model matches Piper's 22050Hz / 256 Hop / 80 Mel specs exactly.
 HF_REPO_ID = "nvidia/BigVGAN_v2_22khz_80band_256x"
-PRETRAINED_FILENAME = "bigvgan_v2_22khz_80band_256x.pt"
+
+# CORRECTION: NVIDIA names the file 'bigvgan_generator.pt' inside the repo
+PRETRAINED_FILENAME = "bigvgan_generator.pt"
 
 CONFIG_OUTPUT = os.path.join(VOCODER_DIR, "configs", "finetune_22khz.json")
 
@@ -43,6 +45,8 @@ def install_dependencies():
             print(f"      - {req}: OK")
         except subprocess.CalledProcessError:
             print(f"   ⚠️  Warning: Automatic install failed for '{req}'. You might need to install it manually.")
+    
+    print("   (Note: Ignore 'pip dependency resolver' errors regarding torch versions. BigVGAN requires newer Torch than Piper.)")
 
 def get_pretrained_model():
     print(f"\n--- 🧠 Fetching Pretrained Foundation Model ---")
@@ -136,7 +140,7 @@ def create_finetune_config(pretrained_path):
             }
         },
         "train_config": {
-            "batch_size": 8,           # Low batch size for stability during fine-tuning
+            "batch_size": 4,           # Low batch size for stability during fine-tuning
             "learning_rate": 0.0001,   # Low LR is critical for fine-tuning
             "adam_b1": 0.8,
             "adam_b2": 0.99,
@@ -150,4 +154,38 @@ def create_finetune_config(pretrained_path):
             "segment_size": 8192,      # ~370ms audio segment per step
             
             # CRITICAL: This tells BigVGAN to load the NVIDIA weights
-            "finetune_from_model": os.pat
+            "finetune_from_model": os.path.abspath(pretrained_path)
+        },
+        # We also need data config to tell it where to look
+        "data_config": {
+            "training_files": "dataset/filelist_train.txt",
+            "validation_files": "dataset/filelist_val.txt",
+            "sampling_rate": 22050,
+            "filter_length": 1024,
+            "hop_length": 256,
+            "win_length": 1024,
+            "n_mel_channels": 80,
+            "mel_fmin": 0.0,
+            "mel_fmax": 8000.0
+        }
+    }
+
+    if not os.path.exists(os.path.dirname(CONFIG_OUTPUT)):
+        os.makedirs(os.path.dirname(CONFIG_OUTPUT))
+
+    with open(CONFIG_OUTPUT, 'w') as f:
+        json.dump(config, f, indent=4)
+        
+    print(f"   ✅ Config saved to: {CONFIG_OUTPUT}")
+
+def main():
+    install_dependencies()
+    pretrained_path = get_pretrained_model()
+    prepare_filelists()
+    create_finetune_config(pretrained_path)
+    
+    print("\n--- 🎉 Vocoder Setup Complete ---")
+    print("Action: Run 'python 10_train_vocoder.py' to begin fine-tuning.")
+
+if __name__ == "__main__":
+    main()
