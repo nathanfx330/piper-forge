@@ -6,23 +6,21 @@ import random
 import threading
 import time
 import glob
+import math
 from config import *
 
 # --- 🧹 CLEANUP BOT 🧹 ---
 def cleanup_loop(checkpoint_dir, keep_n=3):
     """
-    Runs in the background. Deletes old checkpoints to save disk space.
-    Keeps the 'keep_n' most recent files.
+    Runs in the background. 
+    Keeps exactly the 'keep_n' newest checkpoints (e.g., last 3 epochs).
     """
     print(f"   🤖 Cleanup Bot activated (Keeping last {keep_n} checkpoints)...")
     while True:
         try:
             # 1. Find all Generator checkpoints (g_*)
-            # We look for files starting with g_ inside the checkpoint folder
             pattern = os.path.join(checkpoint_dir, "g_*")
             files = glob.glob(pattern)
-            
-            # Filter to ensure we only get files (not directories like 'logs')
             files = [f for f in files if os.path.isfile(f)]
             
             # If we have more than the limit
@@ -30,38 +28,31 @@ def cleanup_loop(checkpoint_dir, keep_n=3):
                 # 2. Sort by modification time (Oldest first)
                 files.sort(key=os.path.getmtime)
                 
-                # 3. Identify victims (All files except the last 'keep_n')
+                # 3. Delete everything except the last 'keep_n'
                 to_delete = files[:-keep_n]
                 
                 for f in to_delete:
                     try:
-                        print(f"   🗑️  Auto-Cleaning old checkpoint: {os.path.basename(f)}")
+                        print(f"   🗑️  Auto-Cleaning old epoch: {os.path.basename(f)}")
                         os.remove(f)
                         
-                        # Also delete the matching Discriminator file (do_*) to save huge space
-                        # BigVGAN saves a 'do_' file for every 'g_' file.
+                        # Also delete the matching Discriminator file (do_*)
                         do_file = f.replace(os.path.sep + "g_", os.path.sep + "do_")
                         if os.path.exists(do_file):
                             os.remove(do_file)
                             
                     except OSError:
-                        # File might be open/busy, skip it for now
                         pass
                         
         except Exception as e:
             print(f"   ⚠️ Cleanup Bot Error: {e}")
             
-        # Sleep for 60 seconds before checking again
-        time.sleep(60)
+        # Check every 30 seconds
+        time.sleep(30)
 
 # --- SETUP FUNCTIONS ---
 def fix_filelists(wav_dir, train_list_path, val_list_path):
-    """
-    The BigVGAN V2 code automatically appends '.wav' to files in the list.
-    We must generate a filelist WITHOUT extensions to prevent 'file.wav.wav' errors.
-    """
-    print("   🔧 Fixing filelists (Stripping extensions)...")
-    
+    print("   🔧 Fixing filelists...")
     if not os.path.exists(wav_dir):
         print(f"❌ Error: Wav directory not found at {wav_dir}")
         sys.exit(1)
@@ -81,17 +72,16 @@ def fix_filelists(wav_dir, train_list_path, val_list_path):
     train_files = files[:split_idx]
     val_files = files[split_idx:]
     
-    with open(train_list_path, "w") as f:
-        f.write("\n".join(train_files))
-        
-    with open(val_list_path, "w") as f:
-        f.write("\n".join(val_files))
-        
-    print(f"      - Fixed {len(train_files)} training paths.")
-    print(f"      - Fixed {len(val_files)} validation paths.")
+    with open(train_list_path, "w") as f: f.write("\n".join(train_files))
+    with open(val_list_path, "w") as f: f.write("\n".join(val_files))
+    
+    return len(files)
 
-def force_write_golden_config(config_path, vocoder_dir):
-    print(f"   ☢️  Overwriting config with Golden V2 Template...")
+def force_write_golden_config(config_path, steps_per_epoch):
+    """
+    Writes the config with the checkpoint interval matching 1 Epoch.
+    """
+    print(f"   ☢️  Overwriting config (Save Interval = {steps_per_epoch} steps)...")
     
     pretrained_ckpt = os.path.abspath(os.path.join("pretrained_checkpoints", "bigvgan_generator.pt"))
     if not os.path.exists(pretrained_ckpt):
@@ -145,9 +135,12 @@ def force_write_golden_config(config_path, vocoder_dir):
         "lr_decay": 0.999,
         "training_epochs": 100000,
         "stdout_interval": 5,
-        "checkpoint_interval": 200, 
+        
+        # --- DYNAMIC INTERVAL (1 Epoch) ---
+        "checkpoint_interval": steps_per_epoch, 
+        
         "summary_interval": 100,
-        "validation_interval": 1000,
+        "validation_interval": steps_per_epoch, # Validate every epoch too
         "checkpoint_path": "vocoder_checkpoints",
         "segment_size": 8192,
         "num_workers": 2, 
@@ -162,7 +155,7 @@ def force_write_golden_config(config_path, vocoder_dir):
         json.dump(golden_config, f, indent=4)
 
 def main():
-    print(f"--- 🧠 Starting BigVGAN Fine-Tuning for '{VOICE_NAME}' ---")
+    print(f"--- 🧠 Starting BigVGAN Fine-Tuning (Smart Save Mode) ---")
     
     vocoder_dir = "BigVGAN"
     config_path = os.path.join(vocoder_dir, "configs", "finetune_22khz.json")
@@ -174,16 +167,23 @@ def main():
         print("❌ Error: 'BigVGAN' folder missing.")
         sys.exit(1)
 
-    # 1. Prepare files and config
-    fix_filelists(wav_dir, train_list, val_list)
-    force_write_golden_config(config_path, vocoder_dir)
+    # 1. Prepare files and calculate steps
+    total_files = fix_filelists(wav_dir, train_list, val_list)
+    
+    # Calculate Steps per Epoch: (Total Files / Batch Size of 4)
+    # e.g., 1021 files / 4 = 255 steps per epoch
+    steps_per_epoch = math.ceil(total_files / 4)
+    print(f"   📊 Dataset Size: {total_files} files")
+    print(f"   ⏱️  1 Epoch = {steps_per_epoch} Steps (Will save every epoch)")
 
-    # 2. START CLEANUP THREAD
-    # This runs parallel to the training and deletes old files
+    # 2. Update config with exact epoch steps
+    force_write_golden_config(config_path, steps_per_epoch)
+
+    # 3. Start Cleanup Bot (Keep last 3 epochs)
     t = threading.Thread(target=cleanup_loop, args=("vocoder_checkpoints", 3), daemon=True)
     t.start()
 
-    # 3. Launch Training
+    # 4. Launch Training
     env = os.environ.copy()
     env["PYTHONPATH"] = os.path.abspath(vocoder_dir) + os.pathsep + env.get("PYTHONPATH", "")
     
@@ -196,12 +196,10 @@ def main():
         "--list_input_unseen_validation_file", val_list,
         "--list_input_unseen_wavs_dir", wav_dir,
         "--checkpoint_path", "vocoder_checkpoints",
-        "--checkpoint_interval", "200" # Force saves every 200 steps
+        "--checkpoint_interval", str(steps_per_epoch) # Enforce via CLI too
     ]
     
-    print(f"   Config: {os.path.basename(config_path)}")
-    print("   🚀 Launching engine (Auto-Cleanup Enabled)...\n")
-    
+    print("   🚀 Launching engine...")
     try:
         subprocess.run(cmd, env=env)
     except KeyboardInterrupt:
