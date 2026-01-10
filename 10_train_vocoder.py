@@ -3,8 +3,58 @@ import sys
 import subprocess
 import json
 import random
+import threading
+import time
+import glob
 from config import *
 
+# --- 🧹 CLEANUP BOT 🧹 ---
+def cleanup_loop(checkpoint_dir, keep_n=3):
+    """
+    Runs in the background. Deletes old checkpoints to save disk space.
+    Keeps the 'keep_n' most recent files.
+    """
+    print(f"   🤖 Cleanup Bot activated (Keeping last {keep_n} checkpoints)...")
+    while True:
+        try:
+            # 1. Find all Generator checkpoints (g_*)
+            # We look for files starting with g_ inside the checkpoint folder
+            pattern = os.path.join(checkpoint_dir, "g_*")
+            files = glob.glob(pattern)
+            
+            # Filter to ensure we only get files (not directories like 'logs')
+            files = [f for f in files if os.path.isfile(f)]
+            
+            # If we have more than the limit
+            if len(files) > keep_n:
+                # 2. Sort by modification time (Oldest first)
+                files.sort(key=os.path.getmtime)
+                
+                # 3. Identify victims (All files except the last 'keep_n')
+                to_delete = files[:-keep_n]
+                
+                for f in to_delete:
+                    try:
+                        print(f"   🗑️  Auto-Cleaning old checkpoint: {os.path.basename(f)}")
+                        os.remove(f)
+                        
+                        # Also delete the matching Discriminator file (do_*) to save huge space
+                        # BigVGAN saves a 'do_' file for every 'g_' file.
+                        do_file = f.replace(os.path.sep + "g_", os.path.sep + "do_")
+                        if os.path.exists(do_file):
+                            os.remove(do_file)
+                            
+                    except OSError:
+                        # File might be open/busy, skip it for now
+                        pass
+                        
+        except Exception as e:
+            print(f"   ⚠️ Cleanup Bot Error: {e}")
+            
+        # Sleep for 60 seconds before checking again
+        time.sleep(60)
+
+# --- SETUP FUNCTIONS ---
 def fix_filelists(wav_dir, train_list_path, val_list_path):
     """
     The BigVGAN V2 code automatically appends '.wav' to files in the list.
@@ -16,8 +66,6 @@ def fix_filelists(wav_dir, train_list_path, val_list_path):
         print(f"❌ Error: Wav directory not found at {wav_dir}")
         sys.exit(1)
 
-    # Get all .wav files but STRIP the extension for the text file
-    # /path/to/file.wav -> /path/to/file
     files = [
         os.path.abspath(os.path.join(wav_dir, f.replace(".wav", ""))) 
         for f in os.listdir(wav_dir) 
@@ -97,7 +145,7 @@ def force_write_golden_config(config_path, vocoder_dir):
         "lr_decay": 0.999,
         "training_epochs": 100000,
         "stdout_interval": 5,
-        "checkpoint_interval": 1000, 
+        "checkpoint_interval": 200, 
         "summary_interval": 100,
         "validation_interval": 1000,
         "checkpoint_path": "vocoder_checkpoints",
@@ -126,12 +174,16 @@ def main():
         print("❌ Error: 'BigVGAN' folder missing.")
         sys.exit(1)
 
-    # 1. FIX THE FILE LISTS (Remove .wav extension)
+    # 1. Prepare files and config
     fix_filelists(wav_dir, train_list, val_list)
-
-    # 2. FIX THE CONFIG
     force_write_golden_config(config_path, vocoder_dir)
 
+    # 2. START CLEANUP THREAD
+    # This runs parallel to the training and deletes old files
+    t = threading.Thread(target=cleanup_loop, args=("vocoder_checkpoints", 3), daemon=True)
+    t.start()
+
+    # 3. Launch Training
     env = os.environ.copy()
     env["PYTHONPATH"] = os.path.abspath(vocoder_dir) + os.pathsep + env.get("PYTHONPATH", "")
     
@@ -141,14 +193,14 @@ def main():
         "--config", config_path,
         "--input_training_file", train_list,
         "--input_validation_file", val_list,
-        # Override unseen validation to prevent crash
         "--list_input_unseen_validation_file", val_list,
         "--list_input_unseen_wavs_dir", wav_dir,
-        "--checkpoint_path", "vocoder_checkpoints"
+        "--checkpoint_path", "vocoder_checkpoints",
+        "--checkpoint_interval", "200" # Force saves every 200 steps
     ]
     
     print(f"   Config: {os.path.basename(config_path)}")
-    print("   🚀 Launching engine...\n")
+    print("   🚀 Launching engine (Auto-Cleanup Enabled)...\n")
     
     try:
         subprocess.run(cmd, env=env)
