@@ -115,12 +115,20 @@ def main():
     print(f"      (Training Step: {step_num})")
     print("-" * 40)
 
-    # 4. NOW ask for input
-    text = input("📝 Text to Speak: ").strip()
-    if not text: return
+    # 4. NOW ask for input (With Preloaded Tongue Twister)
+    # ---------------------------------------------------------
+    s_twister = "She sells seashells by the seashore, and the shells she sells are seashells for sure."
+    
+    print(f"📝 Text to Speak:")
+    print(f"   (Press ENTER to use default: '{s_twister}')")
+    user_input = input("   > ").strip()
+
+    # Use default if input is empty, otherwise use input
+    text = user_input if user_input else s_twister
+    # ---------------------------------------------------------
 
     draft_wav = "temp_draft.wav"
-    print("\n   1️⃣  Piper: Generating acoustic draft...")
+    print(f"\n   1️⃣  Piper: Generating acoustic draft for: \"{text[:30]}...\"")
     
     cmd = [
         PIPER_BINARY, "--model", PIPER_MODEL, "--output_file", draft_wav,
