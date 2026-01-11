@@ -254,6 +254,7 @@ This section is optional and intended for advanced experimentation. It adds a **
 * This is **experimental**: results may vary depending on dataset size and GPU resources
 * Phase separation ensures Piper focuses on linguistic modeling, while BigVGAN learns waveform realism
 * You can pause / resume fine-tuning without losing progress
+* Testing shows that batch size makes a difference in stability and quality. Please adjust this number until you fill 80% of VRAM
 
 **Goal:** Produce studio-quality, realistic TTS that surpasses Piper’s ceiling, while keeping the acoustic model intact.
 
