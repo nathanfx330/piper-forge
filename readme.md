@@ -239,9 +239,7 @@ This section is optional and intended for advanced experimentation. It adds a **
 
 **Purpose:**
 
-* Enhance breath, transient clarity, and natural timbre
-* Remove metallic / buzzy artifacts common in high-pitch or fast speech
-* Test different fine-tuning strategies on your own recordings
+*To enhance breath, transient clarity, and natural timbre
 
 **Workflow:**
 
