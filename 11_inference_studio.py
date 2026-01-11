@@ -98,7 +98,7 @@ def main():
         print(f"❌ Error: Piper model not found at {PIPER_MODEL}")
         return
 
-    # 2. Check BigVGAN (MOVED TO TOP)
+    # 2. Check BigVGAN
     final_ckpt = BIGVGAN_CKPT if BIGVGAN_CKPT else find_checkpoint()
     
     if not final_ckpt:
@@ -106,7 +106,7 @@ def main():
         print("   Did you run Script 10 to at least Step 200?")
         return
 
-    # 3. Print Confirmation (MOVED TO TOP)
+    # 3. Print Confirmation
     ckpt_name = os.path.basename(final_ckpt)
     match = re.search(r"g_(\d+)", ckpt_name)
     step_num = match.group(1) if match else "???"
@@ -115,24 +115,26 @@ def main():
     print(f"      (Training Step: {step_num})")
     print("-" * 40)
 
-    # 4. NOW ask for input (With Preloaded Tongue Twister)
-    # ---------------------------------------------------------
+    # 4. Ask for input
     s_twister = "She sells seashells by the seashore, and the shells she sells are seashells for sure."
     
     print(f"📝 Text to Speak:")
     print(f"   (Press ENTER to use default: '{s_twister}')")
     user_input = input("   > ").strip()
 
-    # Use default if input is empty, otherwise use input
     text = user_input if user_input else s_twister
-    # ---------------------------------------------------------
 
     draft_wav = "temp_draft.wav"
     print(f"\n   1️⃣  Piper: Generating acoustic draft for: \"{text[:30]}...\"")
     
+    # --- BIGVGAN OPTIMIZED SETTINGS ---
+    # Low noise scale (0.333) prevents "gurgling" artifacts in the vocoder
+    # Tighter noise_w (0.5) keeps phonemes distinct
     cmd = [
         PIPER_BINARY, "--model", PIPER_MODEL, "--output_file", draft_wav,
-        "--noise_scale", "0.667", "--length_scale", "1.0", "--noise_w", "0.8"
+        "--noise_scale", "0.333", 
+        "--length_scale", "1.0", 
+        "--noise_w", "0.5"
     ]
     
     try:
