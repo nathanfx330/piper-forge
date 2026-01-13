@@ -232,7 +232,7 @@ Ah! Perfect — here’s a **concise experimental section** you can drop in your
 ---
 
 ## 🧪 Experimental Phase: Neural Vocoder Integration
-**Install Conda env:**
+**Install Conda Env:**
 ```bash
 conda env create -f environment_bigvgan.yml
 ```
