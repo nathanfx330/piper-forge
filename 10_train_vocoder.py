@@ -9,6 +9,45 @@ import glob
 import math
 from config import *
 
+# --- ⚙️  VOCODER SETTINGS ---
+# Change this number to fit your GPU VRAM
+# 4 = Safe (100% stable)
+# 6 = Aggressive (Good for 10GB-12GB VRAM)
+# 8 = High (Requires 12GB+ free or 16GB VRAM)
+TARGET_BATCH_SIZE = 6
+
+# --- 🔍 SYSTEM CHECK & FEEDBACK ---
+def print_status_report():
+    print(f"\n{'-'*60}")
+    print(f"📊 SYSTEM STATUS REPORT")
+    print(f"{'-'*60}")
+    
+    # 1. Check Piper Context
+    print(f"🔹 PIPER CONTEXT:")
+    print(f"   • Voice Name:    {VOICE_NAME}")
+    print(f"   • Target Quality: {QUALITY.upper()}")
+    print(f"   • Dataset Folder: dataset/wavs/")
+    
+    # 2. Check BigVGAN Config Strategy
+    print(f"\n🔹 BIGVGAN CONFIGURATION (High Quality Preset):")
+    print(f"   • Frequency Limit: UNCLAMPED (Full 0Hz - 11kHz)")
+    print(f"   • Batch Size:      {TARGET_BATCH_SIZE} (Dynamic Setting)")
+    print(f"   • Goal:            High Fidelity / No Ringing")
+    
+    # 3. Check Pretrained Vocoder
+    pretrained = os.path.join("pretrained_checkpoints", "bigvgan_generator.pt")
+    if os.path.exists(pretrained):
+        print(f"\n✅ Found Base Vocoder: {pretrained}")
+    else:
+        # Fallback check
+        alt = os.path.join("pretrained_checkpoints", "bigvgan_v2_22khz_80band_256x.pt")
+        if os.path.exists(alt):
+            print(f"\n✅ Found Base Vocoder: {alt}")
+        else:
+            print(f"\n❌ CRITICAL WARNING: Base Vocoder not found in 'pretrained_checkpoints'!")
+    
+    print(f"{'-'*60}\n")
+
 # --- 🧹 CLEANUP BOT 🧹 ---
 def cleanup_loop(checkpoint_dir, keep_n=3):
     """
@@ -79,9 +118,11 @@ def fix_filelists(wav_dir, train_list_path, val_list_path):
 
 def force_write_golden_config(config_path, steps_per_epoch):
     """
-    Writes the config with the checkpoint interval matching 1 Epoch.
+    Writes the LONG HAUL config.
+    Resets decay to 0.99995 to reach 100k steps without dying.
+    UPDATED: Forces High Quality (fmax=None) and uses TARGET_BATCH_SIZE.
     """
-    print(f"   ☢️  Overwriting config (Save Interval = {steps_per_epoch} steps)...")
+    print(f"   ☢️  Enforcing High Quality Config (Batch {TARGET_BATCH_SIZE} | Unclamped Freqs)...")
     
     pretrained_ckpt = os.path.abspath(os.path.join("pretrained_checkpoints", "bigvgan_generator.pt"))
     if not os.path.exists(pretrained_ckpt):
@@ -103,11 +144,14 @@ def force_write_golden_config(config_path, steps_per_epoch):
         "hop_length": 256,
         "win_size": 1024,
         "win_length": 1024,
+        
+        # --- HIGH QUALITY SETTINGS (CRITICAL) ---
         "fmin": 0,
-        "fmax": 8000,
+        "fmax": None,          # <--- None = No Limit (High Quality)
         "mel_fmin": 0,
-        "mel_fmax": 8000,
-        "fmax_for_loss": None,
+        "mel_fmax": None,      # <--- None = No Limit
+        "fmax_for_loss": None, # <--- None = No Limit
+        
         "activation": "snakebeta",
         "snake_log_interval": 10,
         "snake_logscale": True,
@@ -127,20 +171,21 @@ def force_write_golden_config(config_path, steps_per_epoch):
         "use_snake_at_discriminator": True,
         "discriminator_channel_mult": 1,
         "resolutions": [[1024, 120, 600], [2048, 240, 1200], [512, 50, 240]],
+        
         "num_gpus": 0,
-        "batch_size": 4,
+        "batch_size": TARGET_BATCH_SIZE, # <--- DYNAMIC
+        
+        # --- LONG HAUL SETTINGS ---
         "learning_rate": 0.0001,
         "adam_b1": 0.8,
         "adam_b2": 0.99,
-        "lr_decay": 0.999,
+        "lr_decay": 0.99995,  # Slow decay to survive to 100k
         "training_epochs": 100000,
+        
         "stdout_interval": 5,
-        
-        # --- DYNAMIC INTERVAL (1 Epoch) ---
         "checkpoint_interval": steps_per_epoch, 
-        
         "summary_interval": 100,
-        "validation_interval": steps_per_epoch, # Validate every epoch too
+        "validation_interval": steps_per_epoch, 
         "checkpoint_path": "vocoder_checkpoints",
         "segment_size": 8192,
         "num_workers": 2, 
@@ -155,7 +200,8 @@ def force_write_golden_config(config_path, steps_per_epoch):
         json.dump(golden_config, f, indent=4)
 
 def main():
-    print(f"--- 🧠 Starting BigVGAN Fine-Tuning (Smart Save Mode) ---")
+    print_status_report()
+    print(f"--- 🧠 Starting BigVGAN Fine-Tuning (High Quality Mode) ---")
     
     vocoder_dir = "BigVGAN"
     config_path = os.path.join(vocoder_dir, "configs", "finetune_22khz.json")
@@ -170,16 +216,15 @@ def main():
     # 1. Prepare files and calculate steps
     total_files = fix_filelists(wav_dir, train_list, val_list)
     
-    # Calculate Steps per Epoch: (Total Files / Batch Size of 4)
-    # e.g., 1021 files / 4 = 255 steps per epoch
-    steps_per_epoch = math.ceil(total_files / 4)
+    # Calculate Steps per Epoch (Dynamic based on TARGET_BATCH_SIZE)
+    steps_per_epoch = math.ceil(total_files / TARGET_BATCH_SIZE)
     print(f"   📊 Dataset Size: {total_files} files")
     print(f"   ⏱️  1 Epoch = {steps_per_epoch} Steps (Will save every epoch)")
 
-    # 2. Update config with exact epoch steps
+    # 2. Update config (Force High Quality settings)
     force_write_golden_config(config_path, steps_per_epoch)
 
-    # 3. Start Cleanup Bot (Keep last 3 epochs)
+    # 3. Start Cleanup Bot
     t = threading.Thread(target=cleanup_loop, args=("vocoder_checkpoints", 3), daemon=True)
     t.start()
 
@@ -196,7 +241,7 @@ def main():
         "--list_input_unseen_validation_file", val_list,
         "--list_input_unseen_wavs_dir", wav_dir,
         "--checkpoint_path", "vocoder_checkpoints",
-        "--checkpoint_interval", str(steps_per_epoch) # Enforce via CLI too
+        "--checkpoint_interval", str(steps_per_epoch)
     ]
     
     print("   🚀 Launching engine...")
