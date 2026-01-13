@@ -232,8 +232,10 @@ Ah! Perfect — here’s a **concise experimental section** you can drop in your
 ---
 
 ## 🧪 Experimental Phase: Neural Vocoder Integration
-Install Conda env:
-conda env update --file environment_bigvgan.yml --prune
+**Install Conda env:**
+```bash
+conda env create -f environment_bigvgan.yml
+```
 
 (Steps 9-11) 9_vocoder_setup.py -> 11_inference_studio.py
 
