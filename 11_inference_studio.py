@@ -40,7 +40,17 @@ def get_config(config_path):
     return AttrDict(data)
 
 def get_mel_spectrogram(wav_path, hparams):
+    # 1. Load the Audio
     wav, sr = librosa.load(wav_path, sr=hparams.sampling_rate, mono=True)
+    
+    # --- 🚨 CRITICAL FIX: CONVERGENCE NORMALIZATION 🚨 ---
+    # This aligns the inference volume exactly with Script 2's training volume.
+    # Without this, BigVGAN receives "quiet" data and outputs "strained" artifacts.
+    max_val = np.abs(wav).max()
+    if max_val > 0:
+        wav = wav / max_val * 0.9
+    # -----------------------------------------------------
+
     wav_tensor = torch.FloatTensor(wav).unsqueeze(0)
     spec = torch.stft(
         wav_tensor, n_fft=hparams.n_fft, hop_length=hparams.hop_length,
@@ -129,12 +139,12 @@ def main():
     
     # --- BIGVGAN OPTIMIZED SETTINGS ---
     # Low noise scale (0.333) prevents "gurgling" artifacts in the vocoder
-    # Tighter noise_w (0.5) keeps phonemes distinct
+    # Higher noise_w (0.8) gives BigVGAN more room to breathe on phoneme width
     cmd = [
         PIPER_BINARY, "--model", PIPER_MODEL, "--output_file", draft_wav,
         "--noise_scale", "0.333", 
         "--length_scale", "1.0", 
-        "--noise_w", "0.5"
+        "--noise_w", "0.8"  # <--- OPTIMIZED: Changed from 0.5 to 0.8
     ]
     
     try:
