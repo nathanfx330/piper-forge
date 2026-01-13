@@ -13,7 +13,7 @@ from config import *
 
 # --- CONFIGURATION ---
 VOCODER_DIR = "BigVGAN"
-OUTPUT_FOLDER = "a_bigvgan_wav"  # <--- New Folder Name (Alphabetical top)
+OUTPUT_FOLDER = "a_bigvgan_wav"  # <--- Output directory
 # Leave empty to auto-find your latest trained model
 BIGVGAN_CKPT = "" 
 
@@ -148,21 +148,27 @@ def main():
 
     text = user_input if user_input else s_twister
 
-    draft_wav = "temp_draft.wav"
-    print(f"\n   1️⃣  Piper: Generating acoustic draft for: \"{text[:30]}...\"")
+    # --- DEFINE PATHS ---
+    slug = get_filename_slug(text)
+    
+    # We save BOTH the Piper draft and the BigVGAN final for comparison
+    draft_filename = os.path.join(OUTPUT_FOLDER, f"draft_{slug}_step{step_num}.wav")
+    final_filename = os.path.join(OUTPUT_FOLDER, f"studio_{slug}_step{step_num}.wav")
+
+    print(f"\n   1️⃣  Piper: Generating draft...")
     
     # --- BIGVGAN OPTIMIZED SETTINGS ---
-    # Low noise scale (0.333) prevents "gurgling" artifacts in the vocoder
-    # Higher noise_w (0.8) gives BigVGAN more room to breathe on phoneme width
     cmd = [
-        PIPER_BINARY, "--model", PIPER_MODEL, "--output_file", draft_wav,
+        PIPER_BINARY, "--model", PIPER_MODEL, 
+        "--output_file", draft_filename,  # Saving directly to output folder
         "--noise_scale", "0.333", 
         "--length_scale", "1.0", 
-        "--noise_w", "0.8"  # <--- OPTIMIZED: Changed from 0.5 to 0.8
+        "--noise_w", "0.8"
     ]
     
     try:
         subprocess.run(cmd, input=text.encode('utf-8'), check=True, stderr=subprocess.DEVNULL)
+        print(f"      💾 Saved Draft: {draft_filename}")
     except Exception as e:
         print(f"❌ Piper Execution Failed: {e}")
         return
@@ -175,17 +181,15 @@ def main():
         
         print("   2️⃣  BigVGAN: Rendering high-fidelity audio...")
         with torch.no_grad():
-            mel = get_mel_spectrogram(draft_wav, hparams)
+            mel = get_mel_spectrogram(draft_filename, hparams)
             audio = vocoder(mel)
             audio = audio.squeeze().cpu().numpy()
         
-        # --- Construct Filename with Step ---
-        slug = get_filename_slug(text)
-        out_filename = os.path.join(OUTPUT_FOLDER, f"studio_{slug}_step{step_num}.wav")
+        sf.write(final_filename, audio, hparams.sampling_rate)
         
-        sf.write(out_filename, audio, hparams.sampling_rate)
-        
-        print(f"\n✅ Done! Studio Master saved to:\n   👉 {out_filename}")
+        print(f"\n✅ Done! Files saved to '{OUTPUT_FOLDER}/':")
+        print(f"   1. {os.path.basename(draft_filename)} (Raw Piper)")
+        print(f"   2. {os.path.basename(final_filename)} (BigVGAN Master)")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
