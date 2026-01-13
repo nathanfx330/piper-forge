@@ -3,6 +3,7 @@ import sys
 import subprocess
 import json
 import random
+import shutil
 from config import *
 
 # --- CONFIGURATION ---
@@ -17,8 +18,51 @@ PRETRAINED_FILENAME = "bigvgan_generator.pt"
 
 CONFIG_OUTPUT = os.path.join(VOCODER_DIR, "configs", "finetune_22khz.json")
 
+def check_reset_protocol():
+    """
+    Asks the user if they want to wipe previous training progress
+    to start fresh from the NVIDIA base model.
+    """
+    ckpt_dir = "vocoder_checkpoints"
+    prev_dir = "vocoder_previews"
+    
+    # Check if there is anything to delete
+    has_data = (os.path.exists(ckpt_dir) and os.listdir(ckpt_dir))
+    
+    if has_data:
+        print(f"\n{'-'*50}")
+        print(f"⚠️  PREVIOUS TRAINING DETECTED")
+        print(f"{'-'*50}")
+        print(f"   I found existing checkpoints in '{ckpt_dir}'.")
+        print("   If you want to restart training from the NVIDIA Base,")
+        print("   you must delete these files.\n")
+        
+        print("   [1] KEEP progress (Resume training)")
+        print("   [2] RESET progress (Delete and start fresh)")
+        
+        choice = input("\n   Select option [1/2]: ").strip()
+        
+        if choice == "2":
+            confirm = input("   💥 Are you sure? Type 'yes' to delete: ").strip().lower()
+            if confirm == "yes":
+                print("\n   🗑️  Cleaning up...")
+                try:
+                    shutil.rmtree(ckpt_dir)
+                    print(f"      - Deleted {ckpt_dir}")
+                    if os.path.exists(prev_dir):
+                        shutil.rmtree(prev_dir)
+                        print(f"      - Deleted {prev_dir}")
+                    print("   ✅ Reset Complete. Ready for fresh training.")
+                except Exception as e:
+                    print(f"   ❌ Error deleting folders: {e}")
+                    print("      (You might need to close other scripts/folders first)")
+            else:
+                print("   🚫 Reset cancelled.")
+        else:
+            print("   ℹ️  Progress preserved.")
+
 def install_dependencies():
-    print(f"--- 🛠️  Setting up BigVGAN Environment ---")
+    print(f"\n--- 🛠️  Setting up BigVGAN Environment ---")
     
     if not os.path.exists(VOCODER_DIR):
         print(f"   📥 Cloning BigVGAN from {BIGVGAN_REPO}...")
@@ -169,6 +213,7 @@ def create_finetune_config(pretrained_path):
     print(f"   ✅ Config saved to: {CONFIG_OUTPUT}")
 
 def main():
+    check_reset_protocol()
     install_dependencies()
     pretrained_path = get_pretrained_model()
     prepare_filelists()
