@@ -146,9 +146,9 @@ def force_write_golden_config(config_path, steps_per_epoch):
         "win_length": 1024,
         
         # --- HIGH QUALITY SETTINGS (CRITICAL) ---
-        "fmin": 0,
+        "fmin": 40,            # <--- OPTIMIZED: Removes sub-bass mud
         "fmax": None,          # <--- None = No Limit (High Quality)
-        "mel_fmin": 0,
+        "mel_fmin": 40,        # <--- OPTIMIZED: Focuses bands on voice
         "mel_fmax": None,      # <--- None = No Limit
         "fmax_for_loss": None, # <--- None = No Limit
         
