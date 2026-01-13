@@ -1,0 +1,38 @@
+name: bigvgan-env
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  # LOCKED: PyTorch 2.5.1 prevents the 'weights_only' security crash
+  - pytorch=2.5.1
+  - torchvision
+  - torchaudio=2.5.1
+  - pytorch-cuda=12.1
+  
+  # SYSTEM FIXES: Prevents the matplotlib/pillow crash
+  - libtiff=4.5.1
+  - pillow
+  
+  - pip
+  - pip:
+      # BigVGAN Core Dependencies
+      - alias-free-torch
+      - pesq
+      - auraloss
+      - vector-quantize-pytorch
+      - huggingface_hub
+      
+      # Data Processing & Visuals
+      - scipy
+      - librosa
+      - matplotlib
+      - tensorboard
+      - pyyaml
+      
+      # Piper Integration (For Dashboard & Studio)
+      - onnx
+      - onnxruntime-gpu
+      - soundfile
