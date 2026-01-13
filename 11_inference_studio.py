@@ -8,10 +8,12 @@ import json
 import numpy as np
 import re
 import glob
+import time
 from config import *
 
 # --- CONFIGURATION ---
 VOCODER_DIR = "BigVGAN"
+OUTPUT_FOLDER = "a_bigvgan_wav"  # <--- New Folder Name (Alphabetical top)
 # Leave empty to auto-find your latest trained model
 BIGVGAN_CKPT = "" 
 
@@ -100,9 +102,21 @@ def find_checkpoint():
     # Return newest
     return max(candidates, key=os.path.getmtime)
 
+def get_filename_slug(text):
+    """Creates a short clean filename from text"""
+    clean = re.sub(r'[^\w\s]', '', text).lower()
+    slug = "_".join(clean.split()[:4]) # First 4 words
+    if not slug: slug = f"output_{int(time.time())}"
+    return slug
+
 def main():
     print(f"--- 🎙️  Studio Inference (Custom Model) ---")
     
+    # 0. Ensure Output Folder
+    if not os.path.exists(OUTPUT_FOLDER):
+        os.makedirs(OUTPUT_FOLDER)
+        print(f"   📂 Created output folder: {OUTPUT_FOLDER}/")
+
     # 1. Check Piper
     if not os.path.exists(PIPER_MODEL):
         print(f"❌ Error: Piper model not found at {PIPER_MODEL}")
@@ -119,7 +133,7 @@ def main():
     # 3. Print Confirmation
     ckpt_name = os.path.basename(final_ckpt)
     match = re.search(r"g_(\d+)", ckpt_name)
-    step_num = match.group(1) if match else "???"
+    step_num = match.group(1) if match else "0"
     
     print(f"   ✅ Auto-Selected Checkpoint: {ckpt_name}")
     print(f"      (Training Step: {step_num})")
@@ -164,11 +178,14 @@ def main():
             mel = get_mel_spectrogram(draft_wav, hparams)
             audio = vocoder(mel)
             audio = audio.squeeze().cpu().numpy()
-            
-        out_filename = "studio_output.wav"
+        
+        # --- Construct Filename with Step ---
+        slug = get_filename_slug(text)
+        out_filename = os.path.join(OUTPUT_FOLDER, f"studio_{slug}_step{step_num}.wav")
+        
         sf.write(out_filename, audio, hparams.sampling_rate)
         
-        print(f"\n✅ Done! Studio Master saved to: {out_filename}")
+        print(f"\n✅ Done! Studio Master saved to:\n   👉 {out_filename}")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
