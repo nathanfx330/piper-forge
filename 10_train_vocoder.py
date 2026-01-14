@@ -9,37 +9,56 @@ import glob
 import math
 from config import *
 
-# --- ⚙️  VOCODER SETTINGS ---
-# Change this number to fit your GPU VRAM
+# --- ⚙️  HARDWARE SETTINGS ---
 # 4 = Safe (100% stable)
 # 6 = Aggressive (Good for 10GB-12GB VRAM)
 # 8 = High (Requires 12GB+ free or 16GB VRAM)
 TARGET_BATCH_SIZE = 6
 
+# --- 🕹️  INTERACTIVE MENU ---
+def ask_training_mode():
+    print(f"\n{'-'*60}")
+    print(f"🎛️  BIGVGAN TRAINING COMMAND CENTER")
+    print(f"{'-'*60}")
+    print("Select your training strategy:")
+    print(f"\n   [1] 🚀 STANDARD FINE-TUNE (Learning Rate: 0.0001)")
+    print("       • Use for the first 0 - 50,000 steps.")
+    print("       • Learns the voice shape quickly.")
+    
+    print(f"\n   [2] 💎 PRECISION POLISH   (Learning Rate: 0.00005)")
+    print("       • Use if you hear metallic artifacts or flanging.")
+    print("       • Half-speed training to refine texture.")
+    
+    while True:
+        choice = input("\n👉 Select Option [1 or 2]: ").strip()
+        if choice == "1":
+            return 0.0001, 0.99995, "STANDARD"
+        elif choice == "2":
+            return 0.00005, 0.99999, "PRECISION"
+        else:
+            print("❌ Invalid input. Type 1 or 2.")
+
 # --- 🔍 SYSTEM CHECK & FEEDBACK ---
-def print_status_report():
+def print_status_report(mode_name, lr, decay):
     print(f"\n{'-'*60}")
     print(f"📊 SYSTEM STATUS REPORT")
     print(f"{'-'*60}")
     
-    # 1. Check Piper Context
     print(f"🔹 PIPER CONTEXT:")
     print(f"   • Voice Name:    {VOICE_NAME}")
-    print(f"   • Target Quality: {QUALITY.upper()}")
-    print(f"   • Dataset Folder: dataset/wavs/")
+    print(f"   • Dataset:       dataset/wavs/")
     
-    # 2. Check BigVGAN Config Strategy
-    print(f"\n🔹 BIGVGAN CONFIGURATION (High Quality Preset):")
-    print(f"   • Frequency Limit: UNCLAMPED (Full 0Hz - 11kHz)")
-    print(f"   • Batch Size:      {TARGET_BATCH_SIZE} (Dynamic Setting)")
-    print(f"   • Goal:            High Fidelity / No Ringing")
+    print(f"\n🔹 BIGVGAN STRATEGY: {mode_name}")
+    print(f"   • Batch Size:    {TARGET_BATCH_SIZE}")
+    print(f"   • Freq Range:    40Hz - UNLIMITED (High Quality)")
+    print(f"   • Learning Rate: {lr}")
+    print(f"   • Decay Rate:    {decay}")
     
-    # 3. Check Pretrained Vocoder
+    # Check Pretrained Vocoder
     pretrained = os.path.join("pretrained_checkpoints", "bigvgan_generator.pt")
     if os.path.exists(pretrained):
         print(f"\n✅ Found Base Vocoder: {pretrained}")
     else:
-        # Fallback check
         alt = os.path.join("pretrained_checkpoints", "bigvgan_v2_22khz_80band_256x.pt")
         if os.path.exists(alt):
             print(f"\n✅ Found Base Vocoder: {alt}")
@@ -50,43 +69,25 @@ def print_status_report():
 
 # --- 🧹 CLEANUP BOT 🧹 ---
 def cleanup_loop(checkpoint_dir, keep_n=3):
-    """
-    Runs in the background. 
-    Keeps exactly the 'keep_n' newest checkpoints (e.g., last 3 epochs).
-    """
     print(f"   🤖 Cleanup Bot activated (Keeping last {keep_n} checkpoints)...")
     while True:
         try:
-            # 1. Find all Generator checkpoints (g_*)
             pattern = os.path.join(checkpoint_dir, "g_*")
             files = glob.glob(pattern)
             files = [f for f in files if os.path.isfile(f)]
             
-            # If we have more than the limit
             if len(files) > keep_n:
-                # 2. Sort by modification time (Oldest first)
                 files.sort(key=os.path.getmtime)
-                
-                # 3. Delete everything except the last 'keep_n'
                 to_delete = files[:-keep_n]
-                
                 for f in to_delete:
                     try:
-                        print(f"   🗑️  Auto-Cleaning old epoch: {os.path.basename(f)}")
-                        os.remove(f)
-                        
-                        # Also delete the matching Discriminator file (do_*)
+                        # Also delete discriminator
                         do_file = f.replace(os.path.sep + "g_", os.path.sep + "do_")
-                        if os.path.exists(do_file):
-                            os.remove(do_file)
-                            
-                    except OSError:
-                        pass
-                        
-        except Exception as e:
-            print(f"   ⚠️ Cleanup Bot Error: {e}")
-            
-        # Check every 30 seconds
+                        if os.path.exists(do_file): os.remove(do_file)
+                        os.remove(f)
+                        print(f"   🗑️  Auto-Cleaned: {os.path.basename(f)}")
+                    except OSError: pass
+        except Exception: pass
         time.sleep(30)
 
 # --- SETUP FUNCTIONS ---
@@ -116,13 +117,8 @@ def fix_filelists(wav_dir, train_list_path, val_list_path):
     
     return len(files)
 
-def force_write_golden_config(config_path, steps_per_epoch):
-    """
-    Writes the LONG HAUL config.
-    Resets decay to 0.99995 to reach 100k steps without dying.
-    UPDATED: Forces High Quality (fmax=None) and uses TARGET_BATCH_SIZE.
-    """
-    print(f"   ☢️  Enforcing High Quality Config (Batch {TARGET_BATCH_SIZE} | Unclamped Freqs)...")
+def force_write_golden_config(config_path, steps_per_epoch, lr, decay):
+    print(f"   ☢️  Writing Config (LR={lr} | Fmin=40Hz)...")
     
     pretrained_ckpt = os.path.abspath(os.path.join("pretrained_checkpoints", "bigvgan_generator.pt"))
     if not os.path.exists(pretrained_ckpt):
@@ -145,12 +141,12 @@ def force_write_golden_config(config_path, steps_per_epoch):
         "win_size": 1024,
         "win_length": 1024,
         
-        # --- HIGH QUALITY SETTINGS (CRITICAL) ---
-        "fmin": 40,            # <--- OPTIMIZED: Removes sub-bass mud
-        "fmax": None,          # <--- None = No Limit (High Quality)
-        "mel_fmin": 40,        # <--- OPTIMIZED: Focuses bands on voice
-        "mel_fmax": None,      # <--- None = No Limit
-        "fmax_for_loss": None, # <--- None = No Limit
+        # --- AUDIO QUALITY SETTINGS ---
+        "fmin": 40,            # 40Hz (Cleaner bass)
+        "fmax": None,          # Unlimited Highs
+        "mel_fmin": 40,        
+        "mel_fmax": None,      
+        "fmax_for_loss": None, 
         
         "activation": "snakebeta",
         "snake_log_interval": 10,
@@ -173,13 +169,13 @@ def force_write_golden_config(config_path, steps_per_epoch):
         "resolutions": [[1024, 120, 600], [2048, 240, 1200], [512, 50, 240]],
         
         "num_gpus": 0,
-        "batch_size": TARGET_BATCH_SIZE, # <--- DYNAMIC
+        "batch_size": TARGET_BATCH_SIZE,
         
-        # --- LONG HAUL SETTINGS ---
-        "learning_rate": 0.0001,
+        # --- DYNAMIC TRAINING SETTINGS ---
+        "learning_rate": lr,     # <--- User Selected
         "adam_b1": 0.8,
         "adam_b2": 0.99,
-        "lr_decay": 0.99995,  # Slow decay to survive to 100k
+        "lr_decay": decay,       # <--- User Selected
         "training_epochs": 100000,
         
         "stdout_interval": 5,
@@ -200,8 +196,10 @@ def force_write_golden_config(config_path, steps_per_epoch):
         json.dump(golden_config, f, indent=4)
 
 def main():
-    print_status_report()
-    print(f"--- 🧠 Starting BigVGAN Fine-Tuning (High Quality Mode) ---")
+    # 1. Ask User for Strategy
+    lr, decay, mode_name = ask_training_mode()
+    
+    print_status_report(mode_name, lr, decay)
     
     vocoder_dir = "BigVGAN"
     config_path = os.path.join(vocoder_dir, "configs", "finetune_22khz.json")
@@ -213,22 +211,20 @@ def main():
         print("❌ Error: 'BigVGAN' folder missing.")
         sys.exit(1)
 
-    # 1. Prepare files and calculate steps
+    # 2. Prepare files and calculate steps
     total_files = fix_filelists(wav_dir, train_list, val_list)
-    
-    # Calculate Steps per Epoch (Dynamic based on TARGET_BATCH_SIZE)
     steps_per_epoch = math.ceil(total_files / TARGET_BATCH_SIZE)
     print(f"   📊 Dataset Size: {total_files} files")
-    print(f"   ⏱️  1 Epoch = {steps_per_epoch} Steps (Will save every epoch)")
+    print(f"   ⏱️  1 Epoch = {steps_per_epoch} Steps")
 
-    # 2. Update config (Force High Quality settings)
-    force_write_golden_config(config_path, steps_per_epoch)
+    # 3. Update config with USER SELECTED strategy
+    force_write_golden_config(config_path, steps_per_epoch, lr, decay)
 
-    # 3. Start Cleanup Bot
+    # 4. Start Cleanup Bot
     t = threading.Thread(target=cleanup_loop, args=("vocoder_checkpoints", 3), daemon=True)
     t.start()
 
-    # 4. Launch Training
+    # 5. Launch Training
     env = os.environ.copy()
     env["PYTHONPATH"] = os.path.abspath(vocoder_dir) + os.pathsep + env.get("PYTHONPATH", "")
     
