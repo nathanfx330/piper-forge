@@ -5,15 +5,11 @@ from pathlib import Path
 INPUT_DIR = Path("./txts")
 SUFFIX = "_piperized"
 
-# -----------------------------------------------------------------------------
-# CONFIGURATION
-# -----------------------------------------------------------------------------
-
+# Words to force a pause before (Transition words)
 PAUSE_WORD_LIST = [
     "but", "however", "so", "yet", "therefore", "meanwhile", 
     "instead", "because", "although", "consequently", "crucially",
-    "furthermore", "conversely", "and" 
-    # Added "and" strictly for testing; remove if too choppy
+    "furthermore", "conversely", "and"
 ]
 
 ABBREVIATIONS = {
@@ -25,64 +21,74 @@ ABBREVIATIONS = {
 def piperize_text(text: str) -> str:
     print(f"Original length: {len(text)}")
     
-    # 1. NUCLEAR NORMALIZATION
-    # This turns weird unicode characters (fancy quotes, weird spaces) into standard ASCII
+    # 1. Normalize & Flatten
     text = unicodedata.normalize('NFKC', text)
-    
-    # 2. FLATTEN
-    # Turn the whole text into one long line with single spaces
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\s+', ' ', text) # Turn newlines/tabs into single spaces
 
-    # 3. PROTECT NUMBERS AND ABBREVIATIONS
-    # We replace the punctuation in safe zones with a temporary token "___"
+    # 2. PROTECT (Hide things we don't want to break)
     
-    # Protect Numbers (10,000 -> 10___000)
+    # Numbers (10,000)
     text = re.sub(r'(\d),(\d)', r'\1__COMMA__\2', text)
+    # Decimals (3.14)
     text = re.sub(r'(\d)\.(\d)', r'\1__DOT__\2', text)
+    # Time (12:30)
     text = re.sub(r'(\d):(\d)', r'\1__COLON__\2', text)
     
-    # Protect Abbreviations (Dr. -> Dr___)
+    # Abbreviations (Dr.)
     abbr_pattern = r'\b(' + '|'.join(re.escape(a) for a in ABBREVIATIONS) + r')\.'
     def mask_abbr(m): return m.group(0).replace(".", "__DOT__")
     text = re.sub(abbr_pattern, mask_abbr, text, flags=re.IGNORECASE)
 
-    # 4. DESTROY PUNCTUATION
-    # Now that safe commas are hidden, KILL ALL REMAINING COMMAS
+    # URLs
+    def mask_url(m): return m.group(0).replace(".", "__DOT__").replace(":", "__COLON__")
+    text = re.sub(r'(https?://\S+|www\.\S+)', mask_url, text)
+
+    # 3. APPLY PAUSES (The "..." insertion)
     
-    # Explicitly check if we are finding commas
-    comma_count = text.count(',')
-    print(f"Found {comma_count} unprotected commas to split.")
+    # Explicitly print what we are doing for debugging
+    print("Inserting pauses...")
 
-    # Replace Comma, Semicolon, Colon with Breaks
-    text = text.replace(",", ", ...\n\n")
-    text = text.replace(";", "; ...\n\n")
-    text = text.replace(":", ": ...\n\n")
+    # Commas -> ", ..."
+    text = text.replace(",", ", ...")
     
-    # Replace Periods (Sentence ends)
-    text = text.replace(".", ". ...\n\n")
-    text = text.replace("?", "? ...\n\n")
-    text = text.replace("!", "! ...\n\n")
+    # Semicolons -> "; ..."
+    text = text.replace(";", "; ...")
+    
+    # Colons -> ": ..." (User specifically asked for this)
+    text = text.replace(":", ": ...")
+    
+    # Periods -> ". ..."
+    text = text.replace(".", ". ...")
+    text = text.replace("?", "? ...")
+    text = text.replace("!", "! ...")
 
-    # Replace Dashes (Space - Space)
-    text = text.replace(" - ", " ...\n\n")
-    text = text.replace("—", " ...\n\n")
+    # Dashes -> "..."
+    text = text.replace(" - ", " ... ")
+    text = text.replace("—", " ... ")
 
-    # 5. TRANSITION WORDS
-    # Add a break before specific words
+    # Transition Words (add ... before them)
+    # We use a space before the ... to ensure it doesn't merge with previous word
     pattern = r"\s+\b(" + "|".join(PAUSE_WORD_LIST) + r")\b"
-    text = re.sub(pattern, r' ...\n\n\1', text, flags=re.IGNORECASE)
+    text = re.sub(pattern, r' ... \1', text, flags=re.IGNORECASE)
 
-    # 6. RESTORE PROTECTED CONTENT
+    # 4. RESTORE PROTECTED CHARS
     text = text.replace("__COMMA__", ",")
     text = text.replace("__DOT__", ".")
     text = text.replace("__COLON__", ":")
 
-    # 7. CLEANUP
-    # Fix double ellipses or excessive newlines
+    # 5. CLEANUP
+    # Ensure we don't have double spaces or "....... "
     text = text.replace(".......", "...")
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = text.replace("....", "...")
+    text = text.replace("... ...", "...")
     
-    return text.strip()
+    # Ensure there is a space after every ellipsis
+    text = text.replace("...", "... ")
+    
+    # Final Flatten to ensure absolutely ONE line
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
 
 def main():
     if not INPUT_DIR.exists():
